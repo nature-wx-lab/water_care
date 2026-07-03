@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "preset_version": "2026-07-03.2",
+  "model_version": "engine-1.0.0-v2.1",
+  "modes": ["pot_outdoor", "ground", "farm", "medaka", "indoor", "dry_garden"],
+  "plant_types": {
+    "std_foliage": {"label": "標準観葉", "kc": 0.9, "watering_line": 30, "wet_threshold": 55},
+    "moist_lover": {"label": "水切れ弱め観葉", "kc": 1.0, "watering_line": 40, "wet_threshold": 70},
+    "dry_lover": {"label": "乾燥好き観葉", "kc": 0.75, "watering_line": 20, "wet_threshold": 40},
+    "succulent": {"label": "多肉・サボテン", "kc": 0.5, "watering_line": 5, "wet_threshold": 40},
+    "caudex": {"label": "塊根植物", "kc": 0.55, "watering_line": 5, "wet_threshold": 40},
+    "herb_medit": {"label": "地中海ハーブ", "kc": 0.7, "watering_line": 15, "wet_threshold": 40},
+    "annual": {"label": "草花・一年草", "kc": 1.0, "watering_line": 35, "wet_threshold": 55},
+    "vegetable": {"label": "野菜・果菜類", "kc": 1.0, "watering_line": 35, "wet_threshold": 55},
+    "new_planting": {"label": "植え付け直後", "kc": 0.8, "watering_line": 45, "wet_threshold": 55}
+  },
+  "mode_defaults": {
+    "pot_outdoor": {"capacity_mm": 22.7, "canopy_factor": 2.5, "pot_size_factor": 1.1, "plant_type": "std_foliage"},
+    "ground": {"capacity_mm": 75, "canopy_factor": 1.0, "ground_factor": 0.75, "plant_type": "dry_lover"},
+    "farm": {"capacity_mm": 30, "canopy_factor": 1.0, "ground_factor": 0.75, "plant_type": "vegetable", "raw_fraction": 0.4},
+    "indoor": {"capacity_mm": 55, "canopy_factor": 1.8, "plant_type": "std_foliage"},
+    "dry_garden": {"capacity_mm": 25, "canopy_factor": 1.0, "plant_type": "succulent"}
+  },
+  "medaka_vessels": {
+    "toro60": {"label": "60Lトロ舟", "surface_m2": 0.315, "volume_l": 60}
+  },
+  "overflow_types": {
+    "sponge_std": {"label": "スポンジ5×15cm", "capacity_lph": 2.0, "provisional": true},
+    "pipe13": {"label": "13mmパイプ", "capacity_lph": 60.0, "provisional": true},
+    "side_holes_2": {"label": "横穴2個", "capacity_lph": 20.0, "provisional": true}
+  }
+}
