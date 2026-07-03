@@ -1,13 +1,13 @@
 {
-  "schema_version": 1,
-  "model_version": "engine-1.0.0-v2.1",
-  "preset_version": "2026-07-03.2",
-  "generated_at_utc": "2026-07-03T09:07:07.221869+00:00",
-  "generated_at_jst": "2026-07-03T18:07:07.221869+09:00",
+  "schema_version": 2,
+  "model_version": "engine-1.1.0-v2.1-review04",
+  "preset_version": "2026-07-03.3",
+  "generated_at_utc": "2026-07-03T11:36:15.623418+00:00",
+  "generated_at_jst": "2026-07-03T20:36:15.623418+09:00",
   "source_basetimes": {
-    "amedas": "20260703170000",
-    "wdist": "2026-07-03T07:37:58+09:00",
-    "weekly": "2026-07-03T15:19:34.566201+09:00"
+    "amedas": "20260703200000",
+    "wdist": "2026-07-03T20:34:19+09:00",
+    "weekly": "2026-07-03T20:35:01.817646+09:00"
   },
   "input_station_counts": {
     "temp": {
@@ -31,11 +31,85 @@
       "max": 1285
     }
   },
-  "state_updated_at_jst": "2026-07-03T17:00:00+09:00",
+  "state_updated_at_jst": "2026-07-03T20:00:00+09:00",
   "grid_count": 31296,
-  "forecast_hours": 43,
+  "forecast_hours": 28,
+  "history_hours": 72,
+  "current_index": 71,
+  "forecast_start_index": 72,
+  "distribution_stats": {
+    "pot_outdoor": {
+      "zero_pct": 53.876,
+      "hundred_pct": 0.933
+    },
+    "ground": {
+      "zero_pct": 0.0,
+      "hundred_pct": 5.47
+    },
+    "farm": {
+      "zero_pct": 13.749,
+      "hundred_pct": 5.218
+    }
+  },
   "hourly": {
     "times": [
+      "2026-06-30T21:00:00+09:00",
+      "2026-06-30T22:00:00+09:00",
+      "2026-06-30T23:00:00+09:00",
+      "2026-07-01T00:00:00+09:00",
+      "2026-07-01T01:00:00+09:00",
+      "2026-07-01T02:00:00+09:00",
+      "2026-07-01T03:00:00+09:00",
+      "2026-07-01T04:00:00+09:00",
+      "2026-07-01T05:00:00+09:00",
+      "2026-07-01T06:00:00+09:00",
+      "2026-07-01T07:00:00+09:00",
+      "2026-07-01T08:00:00+09:00",
+      "2026-07-01T09:00:00+09:00",
+      "2026-07-01T10:00:00+09:00",
+      "2026-07-01T11:00:00+09:00",
+      "2026-07-01T12:00:00+09:00",
+      "2026-07-01T13:00:00+09:00",
+      "2026-07-01T14:00:00+09:00",
+      "2026-07-01T15:00:00+09:00",
+      "2026-07-01T16:00:00+09:00",
+      "2026-07-01T17:00:00+09:00",
+      "2026-07-01T18:00:00+09:00",
+      "2026-07-01T19:00:00+09:00",
+      "2026-07-01T20:00:00+09:00",
+      "2026-07-01T21:00:00+09:00",
+      "2026-07-01T22:00:00+09:00",
+      "2026-07-01T23:00:00+09:00",
+      "2026-07-02T00:00:00+09:00",
+      "2026-07-02T01:00:00+09:00",
+      "2026-07-02T02:00:00+09:00",
+      "2026-07-02T03:00:00+09:00",
+      "2026-07-02T04:00:00+09:00",
+      "2026-07-02T05:00:00+09:00",
+      "2026-07-02T06:00:00+09:00",
+      "2026-07-02T07:00:00+09:00",
+      "2026-07-02T08:00:00+09:00",
+      "2026-07-02T09:00:00+09:00",
+      "2026-07-02T10:00:00+09:00",
+      "2026-07-02T11:00:00+09:00",
+      "2026-07-02T12:00:00+09:00",
+      "2026-07-02T13:00:00+09:00",
+      "2026-07-02T14:00:00+09:00",
+      "2026-07-02T15:00:00+09:00",
+      "2026-07-02T16:00:00+09:00",
+      "2026-07-02T17:00:00+09:00",
+      "2026-07-02T18:00:00+09:00",
+      "2026-07-02T19:00:00+09:00",
+      "2026-07-02T20:00:00+09:00",
+      "2026-07-02T21:00:00+09:00",
+      "2026-07-02T22:00:00+09:00",
+      "2026-07-02T23:00:00+09:00",
+      "2026-07-03T00:00:00+09:00",
+      "2026-07-03T01:00:00+09:00",
+      "2026-07-03T02:00:00+09:00",
+      "2026-07-03T03:00:00+09:00",
+      "2026-07-03T04:00:00+09:00",
+      "2026-07-03T05:00:00+09:00",
       "2026-07-03T06:00:00+09:00",
       "2026-07-03T07:00:00+09:00",
       "2026-07-03T08:00:00+09:00",
@@ -81,7 +155,7 @@
       "2026-07-05T00:00:00+09:00"
     ],
     "shape": [
-      43,
+      100,
       31296
     ],
     "files": {
@@ -104,7 +178,7 @@
       "level_cm": "hourly/medaka_level_cm.bin",
       "risk": "hourly/medaka_risk.bin",
       "shape": [
-        43,
+        100,
         31296
       ]
     }
@@ -113,78 +187,78 @@
     {
       "id": "current",
       "label": "現在",
-      "validtime_jst": "2026-07-03T06:00:00+09:00",
+      "validtime_jst": "2026-07-03T20:00:00+09:00",
       "status": "available",
       "layers": {
         "pot_outdoor": {
           "file": "overview/pot_outdoor_current.bin",
           "label_file": "overview/pot_outdoor_current_labels.bin",
           "min": 0.0,
-          "max": 99.31489562988281
+          "max": 100.0
         },
         "ground": {
           "file": "overview/ground_current.bin",
           "label_file": "overview/ground_current_labels.bin",
-          "min": 9.783597946166992,
-          "max": 99.95472717285156
+          "min": 9.719330787658691,
+          "max": 100.0
         },
         "farm": {
           "file": "overview/farm_current.bin",
           "label_file": "overview/farm_current_labels.bin",
           "min": 0.0,
-          "max": 99.83831787109375
+          "max": 100.0
         }
       }
     },
     {
       "id": "plus3",
       "label": "+3h",
-      "validtime_jst": "2026-07-03T09:00:00+09:00",
+      "validtime_jst": "2026-07-03T23:00:00+09:00",
       "status": "available",
       "layers": {
         "pot_outdoor": {
           "file": "overview/pot_outdoor_plus3.bin",
           "label_file": "overview/pot_outdoor_plus3_labels.bin",
           "min": 0.0,
-          "max": 94.8438949584961
+          "max": 100.0
         },
         "ground": {
           "file": "overview/ground_plus3.bin",
           "label_file": "overview/ground_plus3_labels.bin",
-          "min": 8.979324340820312,
-          "max": 99.64945220947266
+          "min": 9.635997772216797,
+          "max": 99.91666412353516
         },
         "farm": {
           "file": "overview/farm_plus3.bin",
           "label_file": "overview/farm_plus3_labels.bin",
           "min": 0.0,
-          "max": 98.748046875
+          "max": 100.0
         }
       }
     },
     {
       "id": "plus6",
       "label": "+6h",
-      "validtime_jst": "2026-07-03T12:00:00+09:00",
+      "validtime_jst": "2026-07-04T02:00:00+09:00",
       "status": "available",
       "layers": {
         "pot_outdoor": {
           "file": "overview/pot_outdoor_plus6.bin",
           "label_file": "overview/pot_outdoor_plus6_labels.bin",
           "min": 0.0,
-          "max": 88.322021484375
+          "max": 100.0
         },
         "ground": {
           "file": "overview/ground_plus6.bin",
           "label_file": "overview/ground_plus6_labels.bin",
-          "min": 7.665903568267822,
-          "max": 99.1767349243164
+          "min": 9.552663803100586,
+          "max": 100.0
         },
         "farm": {
           "file": "overview/farm_plus6.bin",
           "label_file": "overview/farm_plus6_labels.bin",
           "min": 0.0,
-          "max": 97.05976867675781
+          "max": 100.0
         }
       }
     },
@@ -198,19 +272,19 @@
           "file": "overview/pot_outdoor_tonight.bin",
           "label_file": "overview/pot_outdoor_tonight_labels.bin",
           "min": 0.0,
-          "max": 100.0
+          "max": 99.88126373291016
         },
         "ground": {
           "file": "overview/ground_tonight.bin",
           "label_file": "overview/ground_tonight_labels.bin",
-          "min": 5.755816459655762,
-          "max": 100.0
+          "min": 9.691553115844727,
+          "max": 99.97222137451172
         },
         "farm": {
           "file": "overview/farm_tonight.bin",
           "label_file": "overview/farm_tonight_labels.bin",
           "min": 0.0,
-          "max": 100.0
+          "max": 99.93055725097656
         }
       }
     },
@@ -224,19 +298,19 @@
           "file": "overview/pot_outdoor_tomorrow_morning.bin",
           "label_file": "overview/pot_outdoor_tomorrow_morning_labels.bin",
           "min": 0.0,
-          "max": 99.1562271118164
+          "max": 100.0
         },
         "ground": {
           "file": "overview/ground_tomorrow_morning.bin",
           "label_file": "overview/ground_tomorrow_morning_labels.bin",
-          "min": 5.445570945739746,
+          "min": 9.3807954788208,
           "max": 100.0
         },
         "farm": {
           "file": "overview/farm_tomorrow_morning.bin",
           "label_file": "overview/farm_tomorrow_morning_labels.bin",
           "min": 0.0,
-          "max": 99.78797149658203
+          "max": 100.0
         }
       }
     },
@@ -250,19 +324,19 @@
           "file": "overview/pot_outdoor_tomorrow_evening.bin",
           "label_file": "overview/pot_outdoor_tomorrow_evening_labels.bin",
           "min": 0.0,
-          "max": 98.89287567138672
+          "max": 98.80606079101562
         },
         "ground": {
           "file": "overview/ground_tomorrow_evening.bin",
           "label_file": "overview/ground_tomorrow_evening_labels.bin",
-          "min": 1.6328612565994263,
-          "max": 99.92181396484375
+          "min": 5.5456767082214355,
+          "max": 100.0
         },
         "farm": {
           "file": "overview/farm_tomorrow_evening.bin",
           "label_file": "overview/farm_tomorrow_evening_labels.bin",
           "min": 0.0,
-          "max": 99.72075653076172
+          "max": 100.0
         }
       }
     },
@@ -271,25 +345,25 @@
       "label": "48h内最小",
       "validtime_jst": "2026-07-05T00:00:00+09:00",
       "status": "partial",
-      "available_hours": 43,
+      "available_hours": 29,
       "layers": {
         "pot_outdoor": {
           "file": "overview/pot_outdoor_min48.bin",
           "label_file": "overview/pot_outdoor_min48_labels.bin",
           "min": 0.0,
-          "max": 51.585670471191406
+          "max": 74.28797912597656
         },
         "ground": {
           "file": "overview/ground_min48.bin",
           "label_file": "overview/ground_min48_labels.bin",
-          "min": 1.4661946296691895,
-          "max": 96.89154052734375
+          "min": 5.379010200500488,
+          "max": 98.07530975341797
         },
         "farm": {
           "file": "overview/farm_min48.bin",
           "label_file": "overview/farm_min48_labels.bin",
           "min": 0.0,
-          "max": 89.05473327636719
+          "max": 93.23822784423828
         }
       }
     },
@@ -298,43 +372,44 @@
       "label": "72h内最小",
       "validtime_jst": "2026-07-05T00:00:00+09:00",
       "status": "partial",
-      "available_hours": 43,
+      "available_hours": 29,
       "layers": {
         "pot_outdoor": {
           "file": "overview/pot_outdoor_min72.bin",
           "label_file": "overview/pot_outdoor_min72_labels.bin",
           "min": 0.0,
-          "max": 51.585670471191406
+          "max": 74.28797912597656
         },
         "ground": {
           "file": "overview/ground_min72.bin",
           "label_file": "overview/ground_min72_labels.bin",
-          "min": 1.4661946296691895,
-          "max": 96.89154052734375
+          "min": 5.379010200500488,
+          "max": 98.07530975341797
         },
         "farm": {
           "file": "overview/farm_min72.bin",
           "label_file": "overview/farm_min72_labels.bin",
           "min": 0.0,
-          "max": 89.05473327636719
+          "max": 93.23822784423828
         }
       }
     }
   ],
   "medaka": {
     "assumptions": {
-      "container_l": 40,
-      "surface_area_m2": 0.4,
+      "container_l": 60,
+      "surface_area_m2": 0.315,
       "allowance_cm": 3.0,
       "rain_cover": "none",
       "overflow_lph": 2.0,
-      "fry": false
+      "fry": false,
+      "overflow_note": "排水能力は目安"
     },
     "slots": [
       {
         "id": "current",
         "label": "現在",
-        "validtime_jst": "2026-07-03T06:00:00+09:00",
+        "validtime_jst": "2026-07-03T20:00:00+09:00",
         "status": "available",
         "level_file": "overview/medaka_current_level.bin",
         "risk_file": "overview/medaka_current_risk.bin"
@@ -342,7 +417,7 @@
       {
         "id": "plus1",
         "label": "+1h",
-        "validtime_jst": "2026-07-03T07:00:00+09:00",
+        "validtime_jst": "2026-07-03T21:00:00+09:00",
         "status": "available",
         "level_file": "overview/medaka_plus1_level.bin",
         "risk_file": "overview/medaka_plus1_risk.bin"
@@ -350,7 +425,7 @@
       {
         "id": "plus3",
         "label": "+3h",
-        "validtime_jst": "2026-07-03T09:00:00+09:00",
+        "validtime_jst": "2026-07-03T23:00:00+09:00",
         "status": "available",
         "level_file": "overview/medaka_plus3_level.bin",
         "risk_file": "overview/medaka_plus3_risk.bin"
@@ -358,7 +433,7 @@
       {
         "id": "plus6",
         "label": "+6h",
-        "validtime_jst": "2026-07-03T12:00:00+09:00",
+        "validtime_jst": "2026-07-04T02:00:00+09:00",
         "status": "available",
         "level_file": "overview/medaka_plus6_level.bin",
         "risk_file": "overview/medaka_plus6_risk.bin"
@@ -366,7 +441,7 @@
       {
         "id": "plus15",
         "label": "+15h",
-        "validtime_jst": "2026-07-03T21:00:00+09:00",
+        "validtime_jst": "2026-07-04T11:00:00+09:00",
         "status": "available",
         "level_file": "overview/medaka_plus15_level.bin",
         "risk_file": "overview/medaka_plus15_risk.bin"
@@ -374,7 +449,7 @@
       {
         "id": "max24",
         "label": "24h内最大上昇",
-        "validtime_jst": "2026-07-04T05:00:00+09:00",
+        "validtime_jst": "2026-07-04T19:00:00+09:00",
         "status": "available",
         "level_file": "overview/medaka_max24_level.bin",
         "risk_file": "overview/medaka_max24_risk.bin"
