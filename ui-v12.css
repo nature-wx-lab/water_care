@@ -18,6 +18,7 @@ main{height:calc(100vh - 90px);min-height:560px}
 .modal-close{position:absolute;right:12px;top:10px;border:0;background:#17352f;color:#fff;border-radius:50%;width:32px;height:32px;font-size:18px}
 .small-action{margin-top:8px}
 .mydata-panel{position:absolute;z-index:620;left:286px;bottom:10px;width:min(760px,calc(100% - 310px));max-height:32vh;overflow:auto;background:#fffffff2;border:1px solid #b9cbc6;border-radius:5px;padding:10px;box-shadow:0 4px 24px #0002}
+.panel-close{position:absolute;right:8px;top:8px;width:28px;height:28px;border:0;border-radius:50%;background:#17352f;color:#fff;font-weight:900}
 .mydata-grid{display:grid;grid-template-columns:260px 1fr;gap:12px}
 .detail-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
 .detail-summary>div,.detail-summary p{margin:0;padding:10px;background:#f2f7f5;border:1px solid #d6e4df;border-radius:5px}
