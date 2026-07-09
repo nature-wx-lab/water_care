@@ -1,0 +1,41 @@
+/* 2026-07-09 UI v1.2: tabless single map view and weather-distribution-plus-style helpers */
+[hidden]{display:none!important}
+main{height:calc(100vh - 90px);min-height:560px}
+.tabs{display:none}
+.view{display:block;height:100%}
+.view.active{display:grid}
+#mapView{grid-template-columns:268px minmax(0,1fr)}
+.controls label{display:block;margin:8px 0;font-size:13px}
+.controls select,.controls input[type="text"],.controls input[type="range"]{width:100%}
+.check{display:flex!important}
+.check input{width:auto!important}
+.map-info-bar{position:absolute;z-index:560;left:12px;top:12px;max-width:calc(100% - 24px);padding:7px 11px;background:#17352fee;color:#fff;border:1px solid #ffffff66;border-radius:4px;font-size:13px;font-weight:800;box-shadow:0 2px 12px #0002}
+.map-stamp b{display:none}
+.leaflet-control-reset{display:grid;place-items:center;width:30px;height:30px;background:#fff;color:#17352f;text-decoration:none;font-weight:900;border-bottom:1px solid #ccc}
+.leaflet-control-reset:hover{background:#edf6f3}
+.detail-modal{position:absolute;z-index:900;inset:0;display:grid;place-items:center;background:#0a1c1780;padding:18px}
+.detail-modal-card{position:relative;width:min(1080px,96vw);max-height:92%;overflow:auto;background:#fff;border:1px solid #b9cbc6;border-radius:6px;box-shadow:0 12px 40px #0005;padding:18px}
+.modal-close{position:absolute;right:12px;top:10px;border:0;background:#17352f;color:#fff;border-radius:50%;width:32px;height:32px;font-size:18px}
+.small-action{margin-top:8px}
+.mydata-panel{position:absolute;z-index:620;left:286px;bottom:10px;width:min(760px,calc(100% - 310px));max-height:32vh;overflow:auto;background:#fffffff2;border:1px solid #b9cbc6;border-radius:5px;padding:10px;box-shadow:0 4px 24px #0002}
+.mydata-grid{display:grid;grid-template-columns:260px 1fr;gap:12px}
+.detail-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+.detail-summary>div,.detail-summary p{margin:0;padding:10px;background:#f2f7f5;border:1px solid #d6e4df;border-radius:5px}
+.calendar-days{display:grid;grid-template-columns:repeat(7,minmax(110px,1fr));gap:8px}
+.calendar-card{padding:10px;border:1px solid var(--line);border-radius:5px;background:#fff}
+.calendar-card strong{display:block;margin:5px 0;font-size:15px}
+.calendar-card.caution{border-left:5px solid #d95f02}
+.calendar-card.recovery{border-left:5px solid #2d87c8}
+.calendar-card.defer{border-left:5px solid #8d6e63}
+.calendar-card.wet{border-left:5px solid #8e77ad}
+.chart-note{margin:5px 0;color:var(--muted);font-size:11px;line-height:1.45}
+.primary{border:1px solid var(--accent);border-radius:5px;background:var(--accent);color:#fff;font-weight:800;padding:8px 12px}
+.legend{cursor:grab}
+.legend.dragging{cursor:grabbing}
+.timeline{display:grid;grid-template-columns:32px minmax(180px,1fr) 32px;gap:6px;align-items:center}
+.timeline>button{height:28px;border:1px solid var(--line);border-radius:4px;background:#fff;font-weight:900}
+#timelineRange{width:100%}
+.timeline-jumps{grid-column:1/-1;display:flex;gap:4px;overflow-x:auto}
+.timeline-jumps button{min-width:46px;height:26px;border:1px solid var(--line);border-radius:4px;background:#fff;font-size:11px;font-weight:800}
+.timeline-jumps button.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+@media(max-width:760px){main{height:calc(100vh - 88px)}#mapView{grid-template-columns:155px minmax(0,1fr)}.mydata-panel{display:none}.calendar-days{grid-template-columns:1fr}.detail-summary{grid-template-columns:1fr}}
