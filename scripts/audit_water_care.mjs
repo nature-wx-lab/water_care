@@ -81,6 +81,10 @@ try {
     const assumption = document.querySelector('#modelAssumption');
     const assumptionRect = assumption?.getBoundingClientRect();
     const mapPanelRect = document.querySelector('.map-panel')?.getBoundingClientRect();
+    const infoBar = document.querySelector('#mapInfoBar');
+    const infoRect = infoBar?.getBoundingClientRect();
+    const controlRects = [...document.querySelectorAll('.leaflet-top.leaflet-left .leaflet-control')]
+      .map(control => control.getBoundingClientRect());
     return {
       datasetId: document.documentElement.dataset.datasetId,
       layer: document.querySelector('#analysisLayer')?.value,
@@ -100,11 +104,53 @@ try {
         && assumptionRect.top >= mapPanelRect.top && assumptionRect.bottom <= mapPanelRect.bottom,
       landGridCount: Number(document.documentElement.dataset.landGridCount),
       landMaskSha: document.documentElement.dataset.landMaskSha || '',
-      valueCountTotal: Number(document.querySelector('#mapStampText')?.dataset.valueCountTotal),
-      stamp: document.querySelector('#mapStampText')?.textContent || '',
+      valueCountTotal: Number(document.querySelector('#mapInfoBar')?.dataset.valueCountTotal),
+      stamp: document.querySelector('#mapInfoBar')?.textContent || '',
+      obsoleteStampAbsent: !document.querySelector('.map-stamp') && !document.querySelector('#mapStampText'),
+      infoTitleMatches: infoBar?.title === infoBar?.textContent,
+      infoClearOfMapControls: Boolean(infoRect) && controlRects.length > 0
+        && infoRect.left >= Math.max(...controlRects.map(rect => rect.right)) + 4,
       landMaskNote: document.querySelector('#landMaskNote')?.textContent || '',
     };
   });
+  await page.waitForFunction(() => placeLabelPayload?.label_count > 0
+    && labelLayer?.getDrawStats()?.drawn > 0, null, { timeout: 120000 });
+  result.checks.placeLabels = await page.evaluate(async () => {
+    const response = await fetch(`${PLACE_LABEL_URL}?audit=${Date.now()}`, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`place label audit ${response.status}`);
+    const payload = await response.json();
+    const prefectureNames = new Set(['北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県','茨城県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県','新潟県','富山県','石川県','福井県','山梨県','長野県','岐阜県','静岡県','愛知県','三重県','滋賀県','京都府','大阪府','兵庫県','奈良県','和歌山県','鳥取県','島根県','岡山県','広島県','山口県','徳島県','香川県','愛媛県','高知県','福岡県','佐賀県','長崎県','熊本県','大分県','宮崎県','鹿児島県','沖縄県']);
+    const initial = labelLayer.getDrawStats();
+    return {
+      schemaVersion: payload.schema_version,
+      sourceId: payload.source?.id,
+      sourcePath: payload.source?.logical_path,
+      sourceSha: payload.source?.sha256,
+      sourceRows: payload.source?.row_count,
+      labelCount: payload.label_count,
+      actualLabels: payload.labels?.length,
+      rankCounts: payload.rank_counts,
+      rankContract: payload.labels?.every(label => [0, 1, 2].includes(label.rank)
+        && label.min_zoom === ({ 0: 0.9, 1: 1.9, 2: 3.8 })[label.rank]
+        && Number.isFinite(label.latitude) && Number.isFinite(label.longitude)
+        && Boolean(label.station_key) && ['a', 's'].includes(label.station_kind)),
+      noPrefectureLabels: payload.labels?.every(label => label.kind !== 'prefecture'
+        && !prefectureNames.has(label.name)),
+      renderContract: payload.render_contract,
+      runtimeLabels: placeLabelPayload?.label_count,
+      initial,
+      toggleChecked: document.querySelector('#labelsToggle')?.checked,
+      canvasVisible: Boolean(labelLayer?._canvas?.isConnected),
+    };
+  });
+  const initialLabelSequence = result.checks.placeLabels.initial.drawSequence;
+  const initialLabelZoom = result.checks.placeLabels.initial.zoom;
+  await page.evaluate(() => map.setZoom(map.getZoom() + 1, { animate: false }));
+  await page.waitForFunction(({ sequence, zoom }) => labelLayer?.getDrawStats()?.drawSequence > sequence
+    && labelLayer?.getDrawStats()?.zoom === zoom + 1, { sequence: initialLabelSequence, zoom: initialLabelZoom });
+  result.checks.placeLabelZoom = await page.evaluate(() => labelLayer.getDrawStats());
+  await page.evaluate(() => map.setView(JAPAN_VIEW.center, JAPAN_VIEW.zoom, { animate: false }));
+  await page.waitForFunction(() => labelLayer?.getDrawStats()?.zoom === JAPAN_VIEW.zoom);
   result.checks.contract = await page.evaluate(async () => {
     const manifestResponse = await fetch(`./data/moisture_manifest.json?audit=${Date.now()}`, { cache: 'no-store' });
     if (!manifestResponse.ok) throw new Error(`manifest audit ${manifestResponse.status}`);
@@ -287,6 +333,10 @@ try {
       presetVersion: presets.preset_version,
       conditionApplication: manifest.condition_application,
       conditionControls: presets.condition_controls,
+      wateringLines: Object.fromEntries(Object.entries(presets.operational_modes || {}).map(([mode, config]) => [
+        mode,
+        { preset: Number(config.watering_line), runtime: wateringLine(mode) },
+      ])),
       reforecast: manifest.hourly.reforecast,
       waterBalanceStats,
       manifestRootrot: manifest.rootrot_contract,
@@ -391,7 +441,7 @@ try {
     source: document.querySelector('#timeline')?.dataset.source,
     timeIndex: Number(document.querySelector('#timeline')?.dataset.timeIndex),
     readout: document.querySelector('#timelineReadout')?.textContent,
-    stamp: document.querySelector('#mapStampText')?.textContent,
+    stamp: document.querySelector('#mapInfoBar')?.textContent,
     info: document.querySelector('#mapInfoBar')?.textContent,
   }));
 
@@ -409,8 +459,7 @@ try {
     && document.querySelector('[data-slot-index].active')?.dataset.slotIndex === String(index)
     && document.querySelector('[data-slot-index].active')?.textContent === label
     && document.querySelector('#timelineReadout')?.textContent.includes(label)
-    && document.querySelector('#mapInfoBar')?.textContent.includes(label)
-    && document.querySelector('#mapStampText')?.textContent.includes(label), { index: aggregateSlotIndex, label: aggregateDisplayLabel });
+    && document.querySelector('#mapInfoBar')?.textContent.includes(label), { index: aggregateSlotIndex, label: aggregateDisplayLabel });
   result.checks.timelineAggregate = await page.evaluate(() => ({
     viewKind: document.querySelector('#timeline')?.dataset.viewKind,
     source: document.querySelector('#timeline')?.dataset.source,
@@ -418,7 +467,7 @@ try {
     activeShortcut: document.querySelector('[data-slot-index].active')?.dataset.slotIndex,
     buttonLabel: document.querySelector('[data-slot-index].active')?.textContent,
     readout: document.querySelector('#timelineReadout')?.textContent,
-    stamp: document.querySelector('#mapStampText')?.textContent,
+    stamp: document.querySelector('#mapInfoBar')?.textContent,
     info: document.querySelector('#mapInfoBar')?.textContent,
   }));
   await page.evaluate(() => {
@@ -474,7 +523,7 @@ try {
   await page.waitForFunction(() => document.querySelector('#mapInfoBar')?.textContent.startsWith('根腐れ注意MAP'));
   result.checks.rootrot = await page.evaluate(() => ({
     info: document.querySelector('#mapInfoBar')?.textContent,
-    counts: document.querySelector('#mapStampText')?.dataset.valueCounts,
+    counts: document.querySelector('#mapInfoBar')?.dataset.valueCounts,
     legendLabels: [...document.querySelectorAll('#legendNote span')].map(element => element.textContent),
     modelAssumption: document.querySelector('#modelAssumption')?.textContent || '',
   }));
@@ -705,8 +754,10 @@ try {
     reason: document.querySelector('#detailReason')?.textContent || '',
     conditions: document.querySelector('#detailConditions')?.textContent || '',
     calendar: document.querySelector('#calendarDays')?.textContent || '',
-    actionsVisible: !document.querySelector('#mydataDetailActions')?.hidden,
-    chartVisible: !document.querySelector('#detailChart')?.hidden,
+      actionsVisible: !document.querySelector('#mydataDetailActions')?.hidden,
+      visibleLogTypes: [...document.querySelectorAll('[data-detail-log]')]
+        .filter(button => !button.hidden).map(button => button.dataset.detailLog),
+      chartVisible: !document.querySelector('#detailChart')?.hidden,
     detailVisible: !document.querySelector('#detailView')?.hidden,
     managementHidden: Boolean(document.querySelector('#mydataView')?.hidden),
   }));
@@ -724,20 +775,37 @@ try {
   await page.waitForFunction(id => document.querySelector('#detailModal')?.dataset.itemId === id
     && document.querySelector('#detailView')?.hidden === false
     && document.querySelector('#mydataView')?.hidden === true, result.checks.mydataSetup.itemId);
-  await page.evaluate(async id => {
+  await page.evaluate(async ({ id, gridId }) => {
     const item = (await getItems()).find(row => row.id === id);
-    await openItemDetail({ ...item, id: 'audit-medaka-item', mode: 'medaka', preset_id: 'medaka_60l' });
-  }, result.checks.mydataSetup.itemId);
+    const medaka = { ...item, id: 'audit-medaka-item', name: '監査用メダカ', grid_id: gridId,
+      location: { grid_id: gridId }, mode: 'medaka', preset_id: 'medaka_60l', logs: [] };
+    await putItem(medaka);
+    await renderItems();
+    await openItemDetail(medaka);
+  }, { id: result.checks.mydataSetup.itemId, gridId: result.checks.contract.landMask.class1Example });
+  await page.waitForFunction(() => document.querySelector('#detailModal')?.dataset.itemId === 'audit-medaka-item');
   result.checks.mydataMedakaNoStaleChart = await page.evaluate(() => {
     const canvas = document.querySelector('#detailChart');
-    const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+    const blank = document.createElement('canvas');
+    blank.width = canvas.width;
+    blank.height = canvas.height;
     return {
       chartHidden: canvas.hidden,
       titleHidden: document.querySelector('#detailChartTitle')?.hidden,
-      chartCleared: !pixels.some((value, index) => index % 4 === 3 && value !== 0),
-      logButtonsHidden: [...document.querySelectorAll('[data-detail-log]')].every(button => button.hidden),
+      chartCleared: canvas.toDataURL() === blank.toDataURL(),
+      visibleLogTypes: [...document.querySelectorAll('[data-detail-log]')]
+        .filter(button => !button.hidden).map(button => button.dataset.detailLog),
       conditions: document.querySelector('#detailConditions')?.textContent || '',
     };
+  });
+  await page.click('#mydataDetailActions [data-detail-log="water_change"]');
+  await page.waitForFunction(async () => (await getItems()).find(row => row.id === 'audit-medaka-item')
+    ?.logs?.some(log => log.type === 'water_change'));
+  result.checks.mydataMedakaLog = await page.evaluate(async () => {
+    const item = (await getItems()).find(row => row.id === 'audit-medaka-item');
+    const log = item?.logs?.at(-1);
+    return { stored: Boolean(log), type: log?.type, validTimestamp: Number.isFinite(new Date(log?.ts).getTime()),
+      modalItemId: document.querySelector('#detailModal')?.dataset.itemId || '' };
   });
   await page.evaluate(async ({ id, gridId }) => {
     const item = (await getItems()).find(row => row.id === id);
@@ -745,12 +813,16 @@ try {
   }, { id: result.checks.mydataSetup.itemId, gridId: result.checks.contract.landMask.class0Example });
   result.checks.mydataOutsideNoStaleChart = await page.evaluate(() => {
     const canvas = document.querySelector('#detailChart');
-    const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+    const blank = document.createElement('canvas');
+    blank.width = canvas.width;
+    blank.height = canvas.height;
     return {
       chartHidden: canvas.hidden,
       titleHidden: document.querySelector('#detailChartTitle')?.hidden,
-      chartCleared: !pixels.some((value, index) => index % 4 === 3 && value !== 0),
+      chartCleared: canvas.toDataURL() === blank.toDataURL(),
       logButtonsHidden: [...document.querySelectorAll('[data-detail-log]')].every(button => button.hidden),
+      visibleLogTypes: [...document.querySelectorAll('[data-detail-log]')]
+        .filter(button => !button.hidden).map(button => button.dataset.detailLog),
       label: document.querySelector('#detailLabel')?.textContent || '',
     };
   });
@@ -774,12 +846,24 @@ try {
   await page.click('#detailModalClose');
   result.checks.labelOpacity = await page.evaluate(() => {
     const control = document.querySelector('#labelOpacity');
+    const toggle = document.querySelector('#labelsToggle');
+    const initiallyAdded = map.hasLayer(labelLayer) && Boolean(labelLayer?._canvas?.isConnected);
+    toggle.checked = false;
+    toggle.dispatchEvent(new Event('change', { bubbles: true }));
+    const removedWhenOff = !map.hasLayer(labelLayer) && !labelLayer?._canvas?.isConnected;
+    toggle.checked = true;
+    toggle.dispatchEvent(new Event('change', { bubbles: true }));
+    const restoredWhenOn = map.hasLayer(labelLayer) && Boolean(labelLayer?._canvas?.isConnected);
     control.value = '35';
     control.dispatchEvent(new Event('input', { bubbles: true }));
     return {
       value: Number(control.value),
       runtime: labelOpacity,
-      markerOpacities: labelLayer?.getLayers().slice(0, 5).map(layer => layer.options.opacity) || [],
+      canvasOpacity: Number(labelLayer?._canvas?.style.opacity),
+      statsOpacity: labelLayer?.getDrawStats()?.opacity,
+      initiallyAdded,
+      removedWhenOff,
+      restoredWhenOn,
     };
   });
   result.checks.legacyConditions = await page.evaluate(() => {
@@ -858,11 +942,16 @@ try {
     const form = document.querySelector('#itemForm');
     const modal = document.querySelector('#detailModal');
     const management = document.querySelector('#mydataView');
+    const infoRect = document.querySelector('#mapInfoBar')?.getBoundingClientRect();
+    const controlRects = [...document.querySelectorAll('.leaflet-top.leaflet-left .leaflet-control')]
+      .map(control => control.getBoundingClientRect());
     return {
       modalVisible: !modal?.hidden && Boolean(modal?.getBoundingClientRect().height),
       managementVisible: !management?.hidden && Boolean(management?.getBoundingClientRect().height),
       formVisible: Boolean(form?.getBoundingClientRect().height),
       noHorizontalOverflow: document.documentElement.scrollWidth <= window.innerWidth,
+      infoClearOfMapControls: Boolean(infoRect) && controlRects.length > 0
+        && infoRect.left >= Math.max(...controlRects.map(rect => rect.right)) + 4,
     };
   });
   await page.click('#closeMydata');
@@ -885,6 +974,11 @@ try {
   const conditionApplicationOk = contract.conditionApplication?.mode === 'client_proxy'
     && contract.conditionApplication?.physical_recompute === false
     && contract.conditionApplication?.preset_path === 'presets.json';
+  const wateringLinesOk = sameJson(contract.wateringLines, {
+    pot_outdoor: { preset: 30, runtime: 30 },
+    ground: { preset: 20, runtime: 20 },
+    farm: { preset: 35, runtime: 35 },
+  });
   const expectedWaterBalanceLength = contract.hourlyCount * 31296;
   const reforecastContractOk = contract.reforecast?.schema_version === 1
     && contract.reforecast?.dtype === 'float32'
@@ -1013,6 +1107,7 @@ try {
   result.checks.contractGate = {
     landMaskOk,
     conditionApplicationOk,
+    wateringLinesOk,
     reforecastContractOk,
     controlContractOk,
     rootrotContractOk,
@@ -1050,12 +1145,47 @@ try {
     && result.checks.initial.landMaskSha === '2ccff1d901cf2cf8b90983aa3959f7636a64d55067167f322c2ebffc873f4394'
     && result.checks.initial.valueCountTotal === 12404
     && result.checks.initial.stamp.includes('日本陸域12,404格子')
+    && result.checks.initial.stamp.includes('アメダス実況を使った計算')
+    && result.checks.initial.obsoleteStampAbsent
+    && result.checks.initial.infoTitleMatches
+    && result.checks.initial.infoClearOfMapControls
     && result.checks.initial.landMaskNote.includes('31,296格子')
     && result.checks.initial.landMaskNote.includes('日本陸域12,404格子')
     && (requireStale ? result.checks.initial.stale === 'true' : (allowStale || result.checks.initial.stale === 'false'))
     && result.checks.initialCanvas.width > 0
     && result.checks.initialCanvas.height > 0
     && result.checks.initialCanvas.colored > 10
+    && result.checks.placeLabels.schemaVersion === 1
+    && result.checks.placeLabels.sourceId === 'station_inventory_current_temperature'
+    && result.checks.placeLabels.sourcePath === 'data/weather/japan_all_stations/station_inventory_current_temperature.csv'
+    && result.checks.placeLabels.sourceSha === '081b3c91b1c71f63cf774788dee024e97e6dbccb962e8c3356bb4b46ba03e4dd'
+    && result.checks.placeLabels.sourceRows === 918
+    && result.checks.placeLabels.labelCount === 918
+    && result.checks.placeLabels.actualLabels === 918
+    && result.checks.placeLabels.runtimeLabels === 918
+    && sameJson(result.checks.placeLabels.rankCounts, { 0: 57, 1: 103, 2: 758 })
+    && result.checks.placeLabels.rankContract
+    && result.checks.placeLabels.noPrefectureLabels
+    && result.checks.placeLabels.renderContract?.initial_leaflet_zoom === 5
+    && sameJson(result.checks.placeLabels.renderContract?.max_labels, [
+      { zoom_ratio_below: 1.6, count: 38 },
+      { zoom_ratio_below: 2.8, count: 82 },
+      { zoom_ratio_below: null, count: 220 },
+    ])
+    && result.checks.placeLabels.toggleChecked
+    && result.checks.placeLabels.canvasVisible
+    && result.checks.placeLabels.initial.zoom === 5
+    && result.checks.placeLabels.initial.zoomRatio === 1
+    && result.checks.placeLabels.initial.maxLabels === 38
+    && result.checks.placeLabels.initial.drawn > 0
+    && result.checks.placeLabels.initial.drawn <= 38
+    && result.checks.placeLabels.initial.candidates >= result.checks.placeLabels.initial.drawn
+    && result.checks.placeLabels.initial.collisionSkipped > 0
+    && result.checks.placeLabelZoom.zoom === 6
+    && result.checks.placeLabelZoom.zoomRatio === 2
+    && result.checks.placeLabelZoom.maxLabels === 82
+    && result.checks.placeLabelZoom.drawSequence > result.checks.placeLabels.initial.drawSequence
+    && result.checks.placeLabelZoom.drawn > result.checks.placeLabels.initial.drawn
     && contract.schemaVersion >= 4
     && contract.generatorVersion === 5
     && contract.distributionStatsBasis === 'pre_quantized_float'
@@ -1066,6 +1196,7 @@ try {
     && Boolean(contract.manifestPresetVersion)
     && contract.manifestPresetVersion === contract.presetVersion
     && conditionApplicationOk
+    && wateringLinesOk
     && reforecastContractOk
     && controlContractOk
     && rootrotContractOk
@@ -1094,6 +1225,7 @@ try {
     && result.checks.mobileMydataManagement.managementVisible
     && result.checks.mobileMydataManagement.formVisible
     && result.checks.mobileMydataManagement.noHorizontalOverflow
+    && result.checks.mobileMydataManagement.infoClearOfMapControls
     && observedWindowsOk
     && result.checks.rainDifference.info.includes('24時間降水 前日差')
     && result.checks.rainDifference.canvasVisible
@@ -1161,6 +1293,7 @@ try {
     && result.checks.mydataDetail.conditions.includes('補正値はまだ物理再計算へ反映しません')
     && result.checks.mydataDetail.calendar.includes('水やり記録を反映')
     && result.checks.mydataDetail.actionsVisible
+    && sameMembers(result.checks.mydataDetail.visibleLogTypes, ['water_full', 'water_light', 'rain_cover'])
     && result.checks.mydataDetail.chartVisible
     && result.checks.mydataDetail.detailVisible
     && result.checks.mydataDetail.managementHidden
@@ -1171,12 +1304,17 @@ try {
     && result.checks.mydataMedakaNoStaleChart.chartHidden
     && result.checks.mydataMedakaNoStaleChart.titleHidden
     && result.checks.mydataMedakaNoStaleChart.chartCleared
-    && result.checks.mydataMedakaNoStaleChart.logButtonsHidden
+    && sameMembers(result.checks.mydataMedakaNoStaleChart.visibleLogTypes, ['water_change', 'top_up', 'rain_cover'])
     && result.checks.mydataMedakaNoStaleChart.conditions.includes('メダカ容器')
+    && result.checks.mydataMedakaLog.stored
+    && result.checks.mydataMedakaLog.type === 'water_change'
+    && result.checks.mydataMedakaLog.validTimestamp
+    && result.checks.mydataMedakaLog.modalItemId === 'audit-medaka-item'
     && result.checks.mydataOutsideNoStaleChart.chartHidden
     && result.checks.mydataOutsideNoStaleChart.titleHidden
     && result.checks.mydataOutsideNoStaleChart.chartCleared
     && result.checks.mydataOutsideNoStaleChart.logButtonsHidden
+    && result.checks.mydataOutsideNoStaleChart.visibleLogTypes.length === 0
     && result.checks.mydataOutsideNoStaleChart.label === '対象外'
     && result.checks.mapDetailRestoredAfterMydata.selectedGrid === result.checks.mapDetailRestoredAfterMydata.expectedGrid
     && result.checks.mapDetailRestoredAfterMydata.modalItemId === ''
@@ -1188,8 +1326,11 @@ try {
     && result.checks.mapDetailRestoredAfterMydata.managementHidden
     && result.checks.labelOpacity.value === 35
     && Math.abs(result.checks.labelOpacity.runtime - 0.35) < 0.001
-    && result.checks.labelOpacity.markerOpacities.length > 0
-    && result.checks.labelOpacity.markerOpacities.every(value => Math.abs(value - 0.35) < 0.001)
+    && Math.abs(result.checks.labelOpacity.canvasOpacity - 0.35) < 0.001
+    && Math.abs(result.checks.labelOpacity.statsOpacity - 0.35) < 0.001
+    && result.checks.labelOpacity.initiallyAdded
+    && result.checks.labelOpacity.removedWhenOff
+    && result.checks.labelOpacity.restoredWhenOn
     && sameJson(result.checks.legacyConditions, {
       mapPlant: 'foliage', mapSize: 'large', mapDrying: 'dry',
       mapRain: 'inside', mapSun: 'sun', mapSpeed: 'fast',
