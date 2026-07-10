@@ -94,50 +94,124 @@ try {
     if (!presetsResponse.ok) throw new Error(`presets audit ${presetsResponse.status}`);
     const presets = await presetsResponse.json();
     const rootrotCodes = new Set();
-    const rootrotHourly = {};
+    const plantHourly = {};
     for (const [mode, refs] of Object.entries(manifest.hourly?.files || {})) {
-      const response = await fetch(`./data/${refs.rootrot_labels}?v=${encodeURIComponent(manifest.dataset_id)}`);
-      if (!response.ok) throw new Error(`rootrot audit ${response.status}`);
-      const values = new Uint8Array(await response.arrayBuffer());
-      rootrotHourly[mode] = values;
-      for (const value of values) rootrotCodes.add(value);
+      const [moistureResponse, labelResponse, rootrotResponse] = await Promise.all([
+        fetch(`./data/${refs.moisture}?v=${encodeURIComponent(manifest.dataset_id)}`),
+        fetch(`./data/${refs.labels}?v=${encodeURIComponent(manifest.dataset_id)}`),
+        fetch(`./data/${refs.rootrot_labels}?v=${encodeURIComponent(manifest.dataset_id)}`),
+      ]);
+      if (!moistureResponse.ok) throw new Error(`hourly moisture audit ${moistureResponse.status}`);
+      if (!labelResponse.ok) throw new Error(`hourly label audit ${labelResponse.status}`);
+      if (!rootrotResponse.ok) throw new Error(`rootrot audit ${rootrotResponse.status}`);
+      const moisture = new Uint8Array(await moistureResponse.arrayBuffer());
+      const labels = new Uint8Array(await labelResponse.arrayBuffer());
+      const rootrot = new Uint8Array(await rootrotResponse.arrayBuffer());
+      plantHourly[mode] = { moisture, labels, rootrot };
+      for (const value of rootrot) rootrotCodes.add(value);
     }
     const timeIndexes = new Map(manifest.hourly.times.map((value, index) => [value, index]));
     const rootrotReferences = { pointMatches: true, windowMatches: true, checked: 0 };
+    const plantReferences = {
+      pointMoistureMatches: true,
+      pointLabelMatches: true,
+      windowMoistureMatches: true,
+      windowLabelArgminMatches: true,
+      checked: 0,
+      windowChecked: 0,
+      windowMoistureMismatches: 0,
+      windowLabelMismatches: 0,
+      firstWindowMoistureMismatch: null,
+      firstWindowLabelMismatch: null,
+    };
     for (const slot of manifest.slots) {
       const validIndex = timeIndexes.get(slot.validtime_jst);
       const startIndex = timeIndexes.get(slot.window_start_jst);
       const endIndex = timeIndexes.get(slot.window_end_jst);
       for (const [mode, refs] of Object.entries(slot.layers || {})) {
-        const response = await fetch(`./data/${refs.rootrot_label_file}?v=${encodeURIComponent(manifest.dataset_id)}`);
-        if (!response.ok) throw new Error(`rootrot slot audit ${response.status}`);
-        const actual = new Uint8Array(await response.arrayBuffer());
-        const hourly = rootrotHourly[mode];
-        let matches = actual.length === manifest.grid_count && hourly?.length === manifest.hourly.times.length * manifest.grid_count;
+        const [moistureResponse, labelResponse, rootrotResponse] = await Promise.all([
+          fetch(`./data/${refs.file}?v=${encodeURIComponent(manifest.dataset_id)}`),
+          fetch(`./data/${refs.label_file}?v=${encodeURIComponent(manifest.dataset_id)}`),
+          fetch(`./data/${refs.rootrot_label_file}?v=${encodeURIComponent(manifest.dataset_id)}`),
+        ]);
+        if (!moistureResponse.ok) throw new Error(`moisture slot audit ${moistureResponse.status}`);
+        if (!labelResponse.ok) throw new Error(`label slot audit ${labelResponse.status}`);
+        if (!rootrotResponse.ok) throw new Error(`rootrot slot audit ${rootrotResponse.status}`);
+        const actualMoisture = new Uint8Array(await moistureResponse.arrayBuffer());
+        const actualLabels = new Uint8Array(await labelResponse.arrayBuffer());
+        const actualRootrot = new Uint8Array(await rootrotResponse.arrayBuffer());
+        const hourly = plantHourly[mode];
+        const expectedHourlyLength = manifest.hourly.times.length * manifest.grid_count;
+        let moistureMatches = actualMoisture.length === manifest.grid_count
+          && hourly?.moisture.length === expectedHourlyLength;
+        let labelMatches = actualLabels.length === manifest.grid_count
+          && hourly?.labels.length === expectedHourlyLength;
+        let rootrotMatches = actualRootrot.length === manifest.grid_count
+          && hourly?.rootrot.length === expectedHourlyLength;
         if (slot.time_semantics === 'window') {
-          matches = matches && refs.rootrot_aggregation === 'max_stage'
+          const validWindow = Number.isInteger(startIndex) && Number.isInteger(endIndex) && endIndex >= startIndex;
+          moistureMatches = moistureMatches && validWindow;
+          labelMatches = labelMatches && validWindow;
+          rootrotMatches = rootrotMatches && refs.rootrot_aggregation === 'max_stage'
             && Number.isInteger(startIndex) && Number.isInteger(endIndex) && endIndex >= startIndex;
-          for (let grid = 0; matches && grid < manifest.grid_count; grid += 1) {
-            let expected = 0;
+          for (let grid = 0; validWindow && grid < manifest.grid_count; grid += 1) {
+            let expectedMoisture = 255;
+            let expectedLabel = 0;
+            let argminIndex = startIndex;
+            let expectedRootrot = 0;
             for (let hour = startIndex; hour <= endIndex; hour += 1) {
-              expected = Math.max(expected, hourly[hour * manifest.grid_count + grid]);
+              const offset = hour * manifest.grid_count + grid;
+              const hourlyMoisture = hourly.moisture[offset];
+              if (hourlyMoisture < expectedMoisture) {
+                expectedMoisture = hourlyMoisture;
+                expectedLabel = hourly.labels[offset];
+                argminIndex = hour;
+              }
+              expectedRootrot = Math.max(expectedRootrot, hourly.rootrot[offset]);
             }
-            if (actual[grid] !== expected) matches = false;
+            if (actualMoisture[grid] !== expectedMoisture) {
+              moistureMatches = false;
+              plantReferences.windowMoistureMismatches += 1;
+              plantReferences.firstWindowMoistureMismatch ||= {
+                slot: slot.id, mode, grid, expected: expectedMoisture, actual: actualMoisture[grid], argminIndex,
+              };
+            }
+            if (actualLabels[grid] !== expectedLabel) {
+              labelMatches = false;
+              plantReferences.windowLabelMismatches += 1;
+              plantReferences.firstWindowLabelMismatch ||= {
+                slot: slot.id, mode, grid, expected: expectedLabel, actual: actualLabels[grid], argminIndex,
+              };
+            }
+            if (actualRootrot[grid] !== expectedRootrot) rootrotMatches = false;
           }
-          rootrotReferences.windowMatches = rootrotReferences.windowMatches && matches;
+          plantReferences.windowMoistureMatches = plantReferences.windowMoistureMatches && moistureMatches;
+          plantReferences.windowLabelArgminMatches = plantReferences.windowLabelArgminMatches && labelMatches;
+          plantReferences.windowChecked += 1;
+          rootrotReferences.windowMatches = rootrotReferences.windowMatches && rootrotMatches;
         } else {
-          matches = matches && Number.isInteger(validIndex);
-          for (let grid = 0; matches && grid < manifest.grid_count; grid += 1) {
-            if (actual[grid] !== hourly[validIndex * manifest.grid_count + grid]) matches = false;
+          moistureMatches = moistureMatches && Number.isInteger(validIndex);
+          labelMatches = labelMatches && Number.isInteger(validIndex);
+          rootrotMatches = rootrotMatches && Number.isInteger(validIndex);
+          for (let grid = 0; Number.isInteger(validIndex) && grid < manifest.grid_count; grid += 1) {
+            const offset = validIndex * manifest.grid_count + grid;
+            if (actualMoisture[grid] !== hourly.moisture[offset]) moistureMatches = false;
+            if (actualLabels[grid] !== hourly.labels[offset]) labelMatches = false;
+            if (actualRootrot[grid] !== hourly.rootrot[offset]) rootrotMatches = false;
           }
-          rootrotReferences.pointMatches = rootrotReferences.pointMatches && matches;
+          plantReferences.pointMoistureMatches = plantReferences.pointMoistureMatches && moistureMatches;
+          plantReferences.pointLabelMatches = plantReferences.pointLabelMatches && labelMatches;
+          rootrotReferences.pointMatches = rootrotReferences.pointMatches && rootrotMatches;
         }
+        plantReferences.checked += 1;
         rootrotReferences.checked += 1;
       }
     }
     return {
       schemaVersion: manifest.schema_version,
+      generatorVersion: manifest.generator_version,
       datasetId: manifest.dataset_id,
+      distributionStatsBasis: manifest.distribution_stats_basis,
       manifestModelVersion: manifest.model_version,
       presetModelVersion: presets.model_version,
       manifestPresetVersion: manifest.preset_version,
@@ -148,9 +222,13 @@ try {
       presetRootrot: presets.rootrot_contract,
       rootrotCodes: [...rootrotCodes].sort((a, b) => a - b),
       rootrotReferences,
+      plantReferences,
       plantSlots: manifest.slots.map(slot => ({
         id: slot.id,
+        label: slot.label,
         timeSemantics: slot.time_semantics,
+        status: slot.status,
+        availableHours: slot.available_hours || null,
         validtime: slot.validtime_jst,
         windowStart: slot.window_start_jst || null,
         windowEnd: slot.window_end_jst || null,
@@ -189,6 +267,12 @@ try {
     };
   });
   result.checks.initialCanvas = await canvasState('.analysis-canvas');
+  result.checks.partialLabelExample = await page.evaluate(() => slotDisplayLabel({
+    label: '48h内最小',
+    time_semantics: 'window',
+    status: 'partial',
+    available_hours: 37,
+  }));
 
   const forecastIndex = result.checks.contract.currentIndex + 1;
   await page.$eval('#timelineRange', (range, index) => {
@@ -211,18 +295,67 @@ try {
     info: document.querySelector('#mapInfoBar')?.textContent,
   }));
 
-  await page.click('[data-slot-index="6"]');
-  await page.waitForFunction(() => document.querySelector('#timeline')?.dataset.viewKind === 'aggregate'
+  const partialSlotIndex = result.checks.contract.plantSlots.findIndex(slot => slot.timeSemantics === 'window' && slot.status === 'partial');
+  const aggregateSlotIndex = partialSlotIndex >= 0
+    ? partialSlotIndex
+    : result.checks.contract.plantSlots.findIndex(slot => slot.timeSemantics === 'window');
+  const aggregateSlot = result.checks.contract.plantSlots[aggregateSlotIndex];
+  const aggregateDisplayLabel = aggregateSlot?.status === 'partial'
+    ? `${aggregateSlot.label}（${aggregateSlot.availableHours}h分）`
+    : aggregateSlot?.label;
+  await page.click(`[data-slot-index="${aggregateSlotIndex}"]`);
+  await page.waitForFunction(({ index, label }) => document.querySelector('#timeline')?.dataset.viewKind === 'aggregate'
     && document.querySelector('#timeline')?.dataset.source === '集計'
-    && document.querySelector('#mapStampText')?.textContent.includes('集計'));
+    && document.querySelector('[data-slot-index].active')?.dataset.slotIndex === String(index)
+    && document.querySelector('[data-slot-index].active')?.textContent === label
+    && document.querySelector('#timelineReadout')?.textContent.includes(label)
+    && document.querySelector('#mapInfoBar')?.textContent.includes(label)
+    && document.querySelector('#mapStampText')?.textContent.includes(label), { index: aggregateSlotIndex, label: aggregateDisplayLabel });
   result.checks.timelineAggregate = await page.evaluate(() => ({
     viewKind: document.querySelector('#timeline')?.dataset.viewKind,
     source: document.querySelector('#timeline')?.dataset.source,
     timeIndex: Number(document.querySelector('#timeline')?.dataset.timeIndex),
     activeShortcut: document.querySelector('[data-slot-index].active')?.dataset.slotIndex,
+    buttonLabel: document.querySelector('[data-slot-index].active')?.textContent,
     readout: document.querySelector('#timelineReadout')?.textContent,
     stamp: document.querySelector('#mapStampText')?.textContent,
+    info: document.querySelector('#mapInfoBar')?.textContent,
   }));
+  await page.evaluate(() => {
+    const button = document.querySelector('#saveImage');
+    delete button.dataset.imageReady;
+    delete button.dataset.imageError;
+    delete button.dataset.imageSlotLabel;
+    window.__waterCareAuditImageTexts = [];
+    window.__waterCareAuditFillText = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function auditFillText(text, ...args) {
+      window.__waterCareAuditImageTexts.push(String(text));
+      return window.__waterCareAuditFillText.call(this, text, ...args);
+    };
+    window.__waterCareAuditAnchorClick = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function auditAnchorClick() {
+      if (this.download) return undefined;
+      return window.__waterCareAuditAnchorClick.call(this);
+    };
+  });
+  await page.click('#saveImage');
+  await page.waitForFunction(() => Boolean(document.querySelector('#saveImage')?.dataset.imageReady
+    || document.querySelector('#saveImage')?.dataset.imageError), null, { timeout: 30000 });
+  result.checks.imageSave = await page.evaluate(() => {
+    const button = document.querySelector('#saveImage');
+    const value = {
+      ready: button?.dataset.imageReady || '',
+      error: button?.dataset.imageError || '',
+      slotLabel: button?.dataset.imageSlotLabel || '',
+      texts: [...(window.__waterCareAuditImageTexts || [])],
+    };
+    CanvasRenderingContext2D.prototype.fillText = window.__waterCareAuditFillText;
+    HTMLAnchorElement.prototype.click = window.__waterCareAuditAnchorClick;
+    delete window.__waterCareAuditFillText;
+    delete window.__waterCareAuditAnchorClick;
+    delete window.__waterCareAuditImageTexts;
+    return value;
+  });
 
   await page.click('[data-slot-index="0"]');
   await page.waitForFunction(index => document.querySelector('#timeline')?.dataset.viewKind === 'hourly'
@@ -320,6 +453,14 @@ try {
     && contract.rootrotReferences.checked === 24
     && contract.rootrotReferences.pointMatches
     && contract.rootrotReferences.windowMatches;
+  const plantReferencesOk = contract.plantReferences.checked === 24
+    && contract.plantReferences.windowChecked === 6
+    && contract.plantReferences.pointMoistureMatches
+    && contract.plantReferences.pointLabelMatches
+    && contract.plantReferences.windowMoistureMatches
+    && contract.plantReferences.windowLabelArgminMatches
+    && contract.plantReferences.windowMoistureMismatches === 0
+    && contract.plantReferences.windowLabelMismatches === 0;
   const expectedPlantSlots = [
     ['current', 'point'], ['plus3', 'point'], ['plus6', 'point'], ['tonight', 'point'],
     ['tomorrow_morning', 'point'], ['tomorrow_evening', 'point'], ['min48', 'window'], ['min72', 'window'],
@@ -351,7 +492,7 @@ try {
     && result.checks.timelinePoint.readout.includes('+1h')
     && result.checks.timelineAggregate.viewKind === 'aggregate'
     && result.checks.timelineAggregate.source === '集計'
-    && result.checks.timelineAggregate.activeShortcut === '6'
+    && result.checks.timelineAggregate.activeShortcut === String(aggregateSlotIndex)
     && result.checks.timelineAggregate.stamp.includes('集計')
     && result.checks.medaka.timelineMin === medakaTimelineMin
     && result.checks.medaka.timelineMax === medakaTimelineMax
@@ -359,6 +500,15 @@ try {
     && result.checks.medakaAggregate.viewKind === 'aggregate'
     && result.checks.medakaAggregate.source === '集計'
     && result.checks.medakaAggregate.activeShortcut === '5';
+  const partialDisplayOk = result.checks.partialLabelExample === '48h内最小（37h分）'
+    && aggregateSlotIndex >= 0
+    && result.checks.timelineAggregate.buttonLabel === aggregateDisplayLabel
+    && result.checks.timelineAggregate.readout.includes(aggregateDisplayLabel)
+    && result.checks.timelineAggregate.info.includes(aggregateDisplayLabel)
+    && result.checks.imageSave.ready.length > 0
+    && !result.checks.imageSave.error
+    && result.checks.imageSave.slotLabel === aggregateDisplayLabel
+    && result.checks.imageSave.texts.some(text => text.includes(aggregateDisplayLabel));
   const rootrotCountKeys = Object.keys(JSON.parse(result.checks.rootrot.counts || '{}')).map(Number);
   const rootrotUiOk = sameJson(result.checks.rootrot.legendLabels, rootrotLabels)
     && rootrotCountKeys.length > 0
@@ -370,9 +520,11 @@ try {
     conditionApplicationOk,
     controlContractOk,
     rootrotContractOk,
+    plantReferencesOk,
     slotContractOk,
     initialTimelineOk,
     selectedTimelineOk,
+    partialDisplayOk,
     rootrotUiOk,
     observedWindowsOk,
   };
@@ -393,6 +545,8 @@ try {
     && result.checks.initialCanvas.height > 0
     && result.checks.initialCanvas.colored > 10
     && contract.schemaVersion >= 4
+    && contract.generatorVersion >= 3
+    && contract.distributionStatsBasis === 'pre_quantized_float'
     && contract.datasetId === result.checks.initial.datasetId
     && Boolean(contract.manifestModelVersion)
     && contract.manifestModelVersion === contract.presetModelVersion
@@ -401,9 +555,11 @@ try {
     && conditionApplicationOk
     && controlContractOk
     && rootrotContractOk
+    && plantReferencesOk
     && slotContractOk
     && initialTimelineOk
     && selectedTimelineOk
+    && partialDisplayOk
     && sameJson(result.checks.observedOptions, observedOptions)
     && result.checks.rootrot.info.startsWith('根腐れ注意MAP')
     && rootrotUiOk

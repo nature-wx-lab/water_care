@@ -35,6 +35,7 @@ def verify_once(
         "generator_commit": generator_commit,
         "dataset_id": dataset_id,
         "data_schema_version": 4,
+        "generator_version": 3,
         "grid_count": 31296,
     }
     mismatches = {key: (deployment.get(key), value) for key, value in expected.items() if deployment.get(key) != value}
@@ -46,7 +47,12 @@ def verify_once(
         if actual_hash != expected_hash:
             raise RuntimeError(f"deployed hash mismatch: {relative}")
     manifest = json.loads(fetch_bytes(urljoin(base_url.rstrip("/") + "/", f"data/moisture_manifest.json?verify={nonce}")).decode("utf-8"))
-    if manifest.get("dataset_id") != dataset_id or manifest.get("schema_version") != 4:
+    if (
+        manifest.get("dataset_id") != dataset_id
+        or manifest.get("schema_version") != 4
+        or manifest.get("generator_version") != 3
+        or manifest.get("distribution_stats_basis") != "pre_quantized_float"
+    ):
         raise RuntimeError("deployed data manifest mismatch")
     return deployment
 
