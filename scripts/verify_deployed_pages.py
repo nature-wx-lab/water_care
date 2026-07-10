@@ -35,7 +35,7 @@ def verify_once(
         "generator_commit": generator_commit,
         "dataset_id": dataset_id,
         "data_schema_version": 4,
-        "generator_version": 3,
+        "generator_version": 4,
         "grid_count": 31296,
     }
     mismatches = {key: (deployment.get(key), value) for key, value in expected.items() if deployment.get(key) != value}
@@ -50,10 +50,26 @@ def verify_once(
     if (
         manifest.get("dataset_id") != dataset_id
         or manifest.get("schema_version") != 4
-        or manifest.get("generator_version") != 3
+        or manifest.get("generator_version") != 4
         or manifest.get("distribution_stats_basis") != "pre_quantized_float"
+        or manifest.get("distribution_stats_scope", {}).get("included_classes") != [1, 2]
+        or manifest.get("distribution_stats_scope", {}).get("grid_count") != 12404
     ):
         raise RuntimeError("deployed data manifest mismatch")
+    required_land_core = {
+        "data/static/grid_land_class.bin",
+        "data/static/grid_land_class_manifest.json",
+    }
+    if not required_land_core.issubset(deployment.get("core_sha256") or {}):
+        raise RuntimeError("deployed land mask core hashes are missing")
+    land = deployment.get("land_mask") or {}
+    if (
+        land.get("schema_version") != 1
+        or land.get("grid_count") != 31296
+        or land.get("counts") != {"0": 18887, "1": 12254, "2": 150, "3": 5}
+        or land.get("public_land_classes") != [1, 2]
+    ):
+        raise RuntimeError("deployed land mask metadata mismatch")
     return deployment
 
 

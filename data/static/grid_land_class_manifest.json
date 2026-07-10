@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "grid_count": 31296,
+  "dtype": "uint8",
+  "bytes_per_grid": 1,
+  "file": "static/grid_land_class.bin",
+  "sha256": "2ccff1d901cf2cf8b90983aa3959f7636a64d55067167f322c2ebffc873f4394",
+  "classes": {
+    "0": {
+      "id": "outside_or_mainly_sea",
+      "description_ja": "陸域外・主に海上",
+      "count": 18887
+    },
+    "1": {
+      "id": "prefecture_assigned_japan_land",
+      "description_ja": "都道府県割当済みの日本陸域",
+      "count": 12254
+    },
+    "2": {
+      "id": "japan_land_prefecture_unassigned",
+      "description_ja": "日本陸域・都道府県未割当",
+      "count": 150
+    },
+    "3": {
+      "id": "non_japan_land_out_of_scope",
+      "description_ja": "日本国外の陸域・対象外",
+      "count": 5
+    }
+  },
+  "counts": {
+    "0": 18887,
+    "1": 12254,
+    "2": 150,
+    "3": 5
+  },
+  "public_land_classes": [
+    1,
+    2
+  ],
+  "prefecture_stat_classes": [
+    1
+  ],
+  "classification_precedence": [
+    "prefecture_assignment",
+    "natural_earth_japan_land",
+    "natural_earth_other_country_land",
+    "outside_or_mainly_sea"
+  ],
+  "grid_master": {
+    "file": "static/grid_master.csv.gz",
+    "sha256": "bce3917785d85ebfbd6d32d35f2749e8b830787773ca63606124f12adb405931"
+  },
+  "source_boundary": {
+    "dataset": "Natural Earth ne_10m_admin_0_countries",
+    "license": "Public Domain",
+    "sha256": "596d2ac14f754169a4302fe26bda1e95fa97d3ddbf7a5ac9762596de156b9153",
+    "feature_count": 258,
+    "japan_selector": {
+      "method": "unique_country_feature_containing_anchor",
+      "longitude": 139.767,
+      "latitude": 35.681
+    },
+    "japan_geometry_sha256": "c20c3413f0e2eccd298e40d35e6b0b7f54b3c8fae5a0a9c7ef0e58ceee88e368"
+  },
+  "diagnostics": {
+    "prefecture_assigned_count": 12254,
+    "natural_earth_japan_land_count": 12205,
+    "prefecture_and_natural_earth_japan_count": 12055,
+    "prefecture_only_count": 199,
+    "natural_earth_japan_only_count": 150
+  }
+}

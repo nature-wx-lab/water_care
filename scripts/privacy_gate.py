@@ -40,7 +40,7 @@ def fail(items):
 def scan_text(label: object, text: str, deny: list[str], *, source_path: Path | None = None):
     findings = []
     for number, line in enumerate(text.splitlines(), 1):
-        if source_path == Path("scripts/privacy_gate.py") and "re.compile(" in line:
+        if source_path in {Path("scripts/privacy_gate.py"), Path("scripts/verify_pages_payload.py")} and "re.compile(" in line:
             continue
         for pattern in PATTERNS:
             match = pattern.search(line)
