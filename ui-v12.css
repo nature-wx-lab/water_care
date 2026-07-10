@@ -33,6 +33,7 @@ main{height:calc(100vh - 90px);min-height:560px}
 .primary{border:1px solid var(--accent);border-radius:5px;background:var(--accent);color:#fff;font-weight:800;padding:8px 12px}
 .legend{cursor:grab}
 .legend.dragging{cursor:grabbing}
+#modelAssumption{display:block;margin-top:4px;padding-top:4px;border-top:1px solid #d6e4df;color:#765b18;font-size:9px;line-height:1.35;font-weight:700}
 .timeline{top:48px;display:grid;grid-template-columns:32px minmax(220px,1fr) 32px;gap:5px;align-items:center;overflow:visible;padding:6px}
 .timeline>button{height:28px;border:1px solid var(--line);border-radius:4px;background:#fff;font-weight:900}
 .timeline-track{position:relative;display:grid;gap:2px;min-width:220px;padding-top:13px}

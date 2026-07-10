@@ -75,16 +75,29 @@ try {
   await page.waitForFunction(() => Boolean(document.documentElement.dataset.datasetId), null, { timeout: 120000 });
   await page.waitForFunction(() => document.querySelector('#mapInfoBar')?.textContent.startsWith('うるおい残量MAP')
     && ['true', 'false'].includes(document.querySelector('#mapInfoBar')?.dataset.stale), null, { timeout: 120000 });
-  result.checks.initial = await page.evaluate(() => ({
-    datasetId: document.documentElement.dataset.datasetId,
-    layer: document.querySelector('#analysisLayer')?.value,
-    info: document.querySelector('#mapInfoBar')?.textContent,
-    stale: document.querySelector('#mapInfoBar')?.dataset.stale,
-    floatingHidden: document.querySelector('#floatingDetail')?.hidden,
-    mydataHidden: document.querySelector('#mydataView')?.hidden,
-    modalHidden: document.querySelector('#detailModal')?.hidden,
-    slots: document.querySelectorAll('[data-slot-index]').length,
-  }));
+  result.checks.initial = await page.evaluate(() => {
+    const assumption = document.querySelector('#modelAssumption');
+    const assumptionRect = assumption?.getBoundingClientRect();
+    const mapPanelRect = document.querySelector('.map-panel')?.getBoundingClientRect();
+    return {
+      datasetId: document.documentElement.dataset.datasetId,
+      layer: document.querySelector('#analysisLayer')?.value,
+      info: document.querySelector('#mapInfoBar')?.textContent,
+      stale: document.querySelector('#mapInfoBar')?.dataset.stale,
+      floatingHidden: document.querySelector('#floatingDetail')?.hidden,
+      mydataHidden: document.querySelector('#mydataView')?.hidden,
+      modalHidden: document.querySelector('#detailModal')?.hidden,
+      slots: document.querySelectorAll('[data-slot-index]').length,
+      modelDisclosure: document.querySelector('#modelDisclosure')?.textContent || '',
+      modelDisclosureVisible: !document.querySelector('#conditionNote')?.hidden,
+      modelAssumption: assumption?.textContent || '',
+      modelAssumptionVisible: Boolean(assumptionRect?.width && assumptionRect?.height)
+        && getComputedStyle(assumption).visibility !== 'hidden',
+      modelAssumptionInsideMap: Boolean(assumptionRect && mapPanelRect)
+        && assumptionRect.left >= mapPanelRect.left && assumptionRect.right <= mapPanelRect.right
+        && assumptionRect.top >= mapPanelRect.top && assumptionRect.bottom <= mapPanelRect.bottom,
+    };
+  });
   result.checks.contract = await page.evaluate(async () => {
     const manifestResponse = await fetch(`./data/moisture_manifest.json?audit=${Date.now()}`, { cache: 'no-store' });
     if (!manifestResponse.ok) throw new Error(`manifest audit ${manifestResponse.status}`);
@@ -362,12 +375,21 @@ try {
     && document.querySelector('#timeline')?.dataset.source === '実況'
     && Number(document.querySelector('#timeline')?.dataset.timeIndex) === index, result.checks.contract.currentIndex);
 
+  await page.selectOption('#analysisLayer', 'watering');
+  await page.waitForFunction(() => document.querySelector('#mapInfoBar')?.textContent.startsWith('水やりナビMAP'));
+  result.checks.watering = await page.evaluate(() => ({
+    info: document.querySelector('#mapInfoBar')?.textContent,
+    modelDisclosureVisible: !document.querySelector('#conditionNote')?.hidden,
+    modelAssumption: document.querySelector('#modelAssumption')?.textContent || '',
+  }));
+
   await page.selectOption('#analysisLayer', 'rootrot');
   await page.waitForFunction(() => document.querySelector('#mapInfoBar')?.textContent.startsWith('根腐れ注意MAP'));
   result.checks.rootrot = await page.evaluate(() => ({
     info: document.querySelector('#mapInfoBar')?.textContent,
     counts: document.querySelector('#mapStampText')?.dataset.valueCounts,
     legendLabels: [...document.querySelectorAll('#legendNote span')].map(element => element.textContent),
+    modelAssumption: document.querySelector('#modelAssumption')?.textContent || '',
   }));
 
   await page.selectOption('#analysisLayer', 'medaka');
@@ -379,6 +401,9 @@ try {
     timelineMin: Number(document.querySelector('#timelineRange')?.min),
     timelineMax: Number(document.querySelector('#timelineRange')?.max),
     timelineStep: Number(document.querySelector('#timelineRange')?.step),
+    modelDisclosureHidden: Boolean(document.querySelector('#conditionNote')?.hidden),
+    medakaDisclosure: document.querySelector('#medakaDisclosure')?.textContent || '',
+    modelAssumption: document.querySelector('#modelAssumption')?.textContent || '',
   }));
 
   await page.click('[data-slot-index="5"]');
@@ -427,6 +452,23 @@ try {
     count: dataRequests.length,
     allVersioned: dataRequests.length > 0 && dataRequests.every(url => new URL(url).searchParams.get('v') === result.checks.initial.datasetId),
   };
+  await page.setViewportSize({ width: 720, height: 900 });
+  await page.waitForTimeout(100);
+  result.checks.mobileDisclosure = await page.evaluate(() => {
+    const assumption = document.querySelector('#modelAssumption');
+    const assumptionRect = assumption?.getBoundingClientRect();
+    const mapPanelRect = document.querySelector('.map-panel')?.getBoundingClientRect();
+    return {
+      text: assumption?.textContent || '',
+      visible: Boolean(assumptionRect?.width && assumptionRect?.height)
+        && getComputedStyle(assumption).visibility !== 'hidden',
+      insideMap: Boolean(assumptionRect && mapPanelRect)
+        && assumptionRect.left >= mapPanelRect.left && assumptionRect.right <= mapPanelRect.right
+        && assumptionRect.top >= mapPanelRect.top && assumptionRect.bottom <= mapPanelRect.bottom,
+      noHorizontalOverflow: document.documentElement.scrollWidth <= window.innerWidth,
+    };
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
   const contract = result.checks.contract;
   const conditionApplicationOk = contract.conditionApplication?.mode === 'client_proxy'
     && contract.conditionApplication?.physical_recompute === false
@@ -540,6 +582,16 @@ try {
     && result.checks.initial.floatingHidden
     && result.checks.initial.mydataHidden
     && result.checks.initial.modalHidden
+    && result.checks.initial.modelDisclosureVisible
+    && result.checks.initial.modelDisclosure.includes('7日前を60%')
+    && result.checks.initial.modelDisclosure.includes('実際の水やりは反映しません')
+    && result.checks.initial.modelDisclosure.includes('実測校正未了')
+    && result.checks.initial.modelDisclosure.includes('物理モデル再計算ではありません')
+    && result.checks.initial.modelAssumptionVisible
+    && result.checks.initial.modelAssumptionInsideMap
+    && result.checks.initial.modelAssumption.includes('7日前に60%で開始')
+    && result.checks.initial.modelAssumption.includes('実際の水やり未反映')
+    && result.checks.initial.modelAssumption.includes('実測校正未了')
     && (requireStale ? result.checks.initial.stale === 'true' : (allowStale || result.checks.initial.stale === 'false'))
     && result.checks.initialCanvas.width > 0
     && result.checks.initialCanvas.height > 0
@@ -561,10 +613,21 @@ try {
     && selectedTimelineOk
     && partialDisplayOk
     && sameJson(result.checks.observedOptions, observedOptions)
+    && result.checks.watering.info.startsWith('水やりナビMAP')
+    && result.checks.watering.modelDisclosureVisible
+    && result.checks.watering.modelAssumption === result.checks.initial.modelAssumption
     && result.checks.rootrot.info.startsWith('根腐れ注意MAP')
+    && result.checks.rootrot.modelAssumption === result.checks.initial.modelAssumption
     && rootrotUiOk
     && result.checks.medaka.slots === 6
     && result.checks.medaka.info.startsWith('メダカあふれリスクMAP')
+    && result.checks.medaka.modelDisclosureHidden
+    && result.checks.medaka.medakaDisclosure.includes('実測校正未了')
+    && result.checks.medaka.modelAssumption === result.checks.initial.modelAssumption
+    && result.checks.mobileDisclosure.visible
+    && result.checks.mobileDisclosure.insideMap
+    && result.checks.mobileDisclosure.noHorizontalOverflow
+    && result.checks.mobileDisclosure.text === result.checks.initial.modelAssumption
     && observedWindowsOk
     && result.checks.rainDifference.info.includes('24時間降水 前日差')
     && result.checks.rainDifference.canvasVisible
