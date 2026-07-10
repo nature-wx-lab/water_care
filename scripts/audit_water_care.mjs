@@ -89,6 +89,10 @@ try {
       datasetId: document.documentElement.dataset.datasetId,
       layer: document.querySelector('#analysisLayer')?.value,
       info: document.querySelector('#mapInfoBar')?.textContent,
+      expectedJst: new Date(selectedTarget()?.validtime_jst).toLocaleString('ja-JP', {
+        timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
+      }),
+      browserTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       stale: document.querySelector('#mapInfoBar')?.dataset.stale,
       floatingHidden: document.querySelector('#floatingDetail')?.hidden,
       mydataHidden: document.querySelector('#mydataView')?.hidden,
@@ -116,24 +120,33 @@ try {
   await page.waitForFunction(() => placeLabelPayload?.label_count > 0
     && labelLayer?.getDrawStats()?.drawn > 0, null, { timeout: 120000 });
   result.checks.placeLabels = await page.evaluate(async () => {
-    const response = await fetch(`${PLACE_LABEL_URL}?audit=${Date.now()}`, { cache: 'no-store' });
+    const auditUrl = new URL(PLACE_LABEL_URL, location.href);
+    auditUrl.searchParams.set('audit', String(Date.now()));
+    const response = await fetch(auditUrl, { cache: 'no-store' });
     if (!response.ok) throw new Error(`place label audit ${response.status}`);
     const payload = await response.json();
     const prefectureNames = new Set(['北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県','茨城県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県','新潟県','富山県','石川県','福井県','山梨県','長野県','岐阜県','静岡県','愛知県','三重県','滋賀県','京都府','大阪府','兵庫県','奈良県','和歌山県','鳥取県','島根県','岡山県','広島県','山口県','徳島県','香川県','愛媛県','高知県','福岡県','佐賀県','長崎県','熊本県','大分県','宮崎県','鹿児島県','沖縄県']);
+    const regionalNames = ['中国', '韓国', '北朝鮮', 'ロシア', '台湾'];
     const initial = labelLayer.getDrawStats();
     return {
+      requestUrl: response.url,
+      cacheVersioned: new URL(PLACE_LABEL_URL, location.href).searchParams.has('v'),
       schemaVersion: payload.schema_version,
       sourceId: payload.source?.id,
       sourcePath: payload.source?.logical_path,
       sourceSha: payload.source?.sha256,
       sourceRows: payload.source?.row_count,
       labelCount: payload.label_count,
+      stationLabelCount: payload.station_label_count,
+      regionalLabelCount: payload.regional_label_count,
       actualLabels: payload.labels?.length,
       rankCounts: payload.rank_counts,
       rankContract: payload.labels?.every(label => [0, 1, 2].includes(label.rank)
         && label.min_zoom === ({ 0: 0.9, 1: 1.9, 2: 3.8 })[label.rank]
         && Number.isFinite(label.latitude) && Number.isFinite(label.longitude)
-        && Boolean(label.station_key) && ['a', 's'].includes(label.station_kind)),
+        && Boolean(label.station_key) && ['a', 's', 'regional'].includes(label.station_kind)),
+      regionalLabelsComplete: regionalNames.every(name => payload.labels?.some(label => label.name === name
+        && label.station_kind === 'regional' && label.rank === 0)),
       noPrefectureLabels: payload.labels?.every(label => label.kind !== 'prefecture'
         && !prefectureNames.has(label.name)),
       renderContract: payload.render_contract,
@@ -580,21 +593,50 @@ try {
     };
   }, result.checks.contract.landMask.class1Example);
 
-  const map = page.locator('#map');
-  const box = await map.boundingBox();
+  const mapLocator = page.locator('#map');
+  const box = await mapLocator.boundingBox();
   if (!box) throw new Error('map has no bounding box');
-  await page.mouse.click(box.x + box.width * 0.55, box.y + box.height * 0.52);
-  await page.waitForFunction(() => document.querySelector('#floatingDetail')?.hidden === false);
-  await page.click('#openDetailModal');
+  const clickTargets = await page.evaluate(() => {
+    const mapElement = document.querySelector('#map');
+    const mapRect = mapElement.getBoundingClientRect();
+    const safe = analysis.publicLandGridIds.map(gridId => ({
+      gridId,
+      point: map.latLngToContainerPoint([analysis.points[gridId * 2], analysis.points[gridId * 2 + 1]]),
+    })).filter(({ point }) => {
+      if (point.x < 30 || point.y < 30 || point.x > mapRect.width - 30 || point.y > mapRect.height - 30) return false;
+      const hit = document.elementFromPoint(mapRect.left + point.x, mapRect.top + point.y);
+      return Boolean(hit?.closest('#map')) && !hit.closest('.leaflet-control');
+    });
+    const first = safe[Math.floor(safe.length * 0.35)];
+    const second = safe.find(candidate => candidate.gridId !== first.gridId
+      && Math.hypot(candidate.point.x - first.point.x, candidate.point.y - first.point.y) > 100);
+    if (!first || !second) throw new Error('three-click map audit targets unavailable');
+    const firstGrid = first.gridId, firstPoint = first.point;
+    const secondGrid = second.gridId, secondPoint = second.point;
+    return { firstGrid, secondGrid, firstPoint, secondPoint };
+  });
+  await page.mouse.click(box.x + clickTargets.firstPoint.x, box.y + clickTargets.firstPoint.y);
+  await page.waitForFunction(gridId => document.querySelector('#detailModal')?.hidden === false
+    && analysis.selectedGrid === gridId, clickTargets.firstGrid);
   result.checks.detail = await page.evaluate(() => ({
-    grid: document.querySelector('#floatingGrid')?.textContent,
+    grid: document.querySelector('#detailGrid')?.textContent,
     selectedGrid: analysis.selectedGrid,
     landClass: analysis.landClasses?.[analysis.selectedGrid],
-    floatingVisible: !document.querySelector('#floatingDetail')?.hidden,
+    floatingHidden: Boolean(document.querySelector('#floatingDetail')?.hidden),
     modalVisible: !document.querySelector('#detailModal')?.hidden,
   }));
   await page.click('#detailModalClose');
-  await page.click('#floatingClose');
+  await page.mouse.click(box.x + clickTargets.secondPoint.x, box.y + clickTargets.secondPoint.y);
+  await page.waitForFunction(gridId => document.querySelector('#detailModal')?.hidden === false
+    && analysis.selectedGrid === gridId, clickTargets.secondGrid);
+  result.checks.mapClickRoundTrip = await page.evaluate(({ firstGrid, secondGrid }) => ({
+    clicks: 3,
+    firstGrid,
+    secondGrid,
+    selectedGrid: analysis.selectedGrid,
+    modalVisible: !document.querySelector('#detailModal')?.hidden,
+  }), clickTargets);
+  await page.click('#detailModalClose');
 
   await page.selectOption('#analysisLayer', 'moisture');
   await page.waitForFunction(() => document.querySelector('#mapInfoBar')?.textContent.startsWith('うるおい残量MAP'));
@@ -636,6 +678,42 @@ try {
     const refs = analysis.manifest.hourly.files.pot_outdoor;
     return !analysis.hourly[refs.water_balance];
   });
+  result.checks.importSanitization = await page.evaluate(gridId => {
+    const now = new Date().toISOString();
+    const normalized = normalizeImportedItem({
+      id: 'audit-import', name: '監査用インポート', mode: 'pot_outdoor', preset_id: 'std_foliage',
+      grid_id: gridId,
+      latitude: 35, longitude: 139, coordinates: [139, 35],
+      location: { grid_id: gridId, label: '任意', lat: 35, lon: 139, latitude: 35, lng: 139 },
+      simple_adjust: { dryness: 'std', rain_exposure: 'std', latitude: 35 },
+      advanced_overrides: { geometry: { coordinates: [139, 35] } },
+      observations: [{ latitude: 35 }],
+      logs: [
+        { ts: now, type: 'water_full', note: 'ok' },
+        { ts: now, type: 'water_change', note: 'wrong mode' },
+        { ts: now, type: 'rain_cover', note: 'ok' },
+      ],
+      created_at: now, updated_at: now,
+    });
+    const forbidden = [];
+    const visit = (value, path = '') => {
+      if (!value || typeof value !== 'object') return;
+      for (const [key, child] of Object.entries(value)) {
+        const next = path ? `${path}.${key}` : key;
+        if (/^(?:lat|latitude|lon|lng|longitude|coordinates?|geo|geometry)$/i.test(key)) forbidden.push(next);
+        visit(child, next);
+      }
+    };
+    visit(normalized);
+    return {
+      forbidden,
+      gridId: normalized.grid_id,
+      location: normalized.location,
+      logTypes: normalized.logs.map(log => log.type),
+      advancedKeys: Object.keys(normalized.advanced_overrides),
+      observations: normalized.observations.length,
+    };
+  }, result.checks.contract.landMask.class1Example);
   await page.click('#openMydata');
   await page.waitForFunction(() => document.querySelector('#detailModal')?.hidden === false
     && document.querySelector('#mydataView')?.hidden === false
@@ -702,7 +780,7 @@ try {
       if (expected[h] <= wateringLine(mode)) { expectedWateringIndex = h; break; }
     }
     const expectedWateringTime = expectedWateringIndex >= 0
-      ? new Date(analysis.manifest.hourly.times[expectedWateringIndex]).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: 'numeric' })
+      ? new Date(analysis.manifest.hourly.times[expectedWateringIndex]).toLocaleString('ja-JP', { timeZone: JST_TIME_ZONE, month: 'numeric', day: 'numeric', hour: 'numeric' })
       : '提供期間内は未到達';
     const actualWateringTime = await wateringTime(item, after);
     const oldItem = { ...item, logs: [{
@@ -781,7 +859,7 @@ try {
       location: { grid_id: gridId }, mode: 'medaka', preset_id: 'medaka_60l', logs: [] };
     await putItem(medaka);
     await renderItems();
-    await openItemDetail(medaka);
+    await Promise.all([openItemDetail(item), openItemDetail(medaka)]);
   }, { id: result.checks.mydataSetup.itemId, gridId: result.checks.contract.landMask.class1Example });
   await page.waitForFunction(() => document.querySelector('#detailModal')?.dataset.itemId === 'audit-medaka-item');
   result.checks.mydataMedakaNoStaleChart = await page.evaluate(() => {
@@ -801,11 +879,17 @@ try {
   await page.click('#mydataDetailActions [data-detail-log="water_change"]');
   await page.waitForFunction(async () => (await getItems()).find(row => row.id === 'audit-medaka-item')
     ?.logs?.some(log => log.type === 'water_change'));
+  await page.evaluate(id => Promise.all([
+    recordWater(id, 'top_up'),
+    recordWater(id, 'rain_cover'),
+  ]), 'audit-medaka-item');
   result.checks.mydataMedakaLog = await page.evaluate(async () => {
     const item = (await getItems()).find(row => row.id === 'audit-medaka-item');
     const log = item?.logs?.at(-1);
     return { stored: Boolean(log), type: log?.type, validTimestamp: Number.isFinite(new Date(log?.ts).getTime()),
-      modalItemId: document.querySelector('#detailModal')?.dataset.itemId || '' };
+      modalItemId: document.querySelector('#detailModal')?.dataset.itemId || '',
+      logCount: item?.logs?.length || 0,
+      logTypes: item?.logs?.map(row => row.type) || [] };
   });
   await page.evaluate(async ({ id, gridId }) => {
     const item = (await getItems()).find(row => row.id === id);
@@ -1146,6 +1230,8 @@ try {
     && result.checks.initial.valueCountTotal === 12404
     && result.checks.initial.stamp.includes('日本陸域12,404格子')
     && result.checks.initial.stamp.includes('アメダス実況を使った計算')
+    && result.checks.initial.info.includes('屋外鉢植え（標準）')
+    && result.checks.initial.info.includes(result.checks.initial.expectedJst)
     && result.checks.initial.obsoleteStampAbsent
     && result.checks.initial.infoTitleMatches
     && result.checks.initial.infoClearOfMapControls
@@ -1160,11 +1246,16 @@ try {
     && result.checks.placeLabels.sourcePath === 'data/weather/japan_all_stations/station_inventory_current_temperature.csv'
     && result.checks.placeLabels.sourceSha === '081b3c91b1c71f63cf774788dee024e97e6dbccb962e8c3356bb4b46ba03e4dd'
     && result.checks.placeLabels.sourceRows === 918
-    && result.checks.placeLabels.labelCount === 918
-    && result.checks.placeLabels.actualLabels === 918
-    && result.checks.placeLabels.runtimeLabels === 918
-    && sameJson(result.checks.placeLabels.rankCounts, { 0: 57, 1: 103, 2: 758 })
+    && result.checks.placeLabels.labelCount === 923
+    && result.checks.placeLabels.stationLabelCount === 918
+    && result.checks.placeLabels.regionalLabelCount === 5
+    && result.checks.placeLabels.actualLabels === 923
+    && result.checks.placeLabels.runtimeLabels === 923
+    && sameJson(result.checks.placeLabels.rankCounts, { 0: 62, 1: 103, 2: 758 })
+    && result.checks.placeLabels.cacheVersioned
+    && result.checks.placeLabels.requestUrl.includes('v=station-labels-v1-081b3c91')
     && result.checks.placeLabels.rankContract
+    && result.checks.placeLabels.regionalLabelsComplete
     && result.checks.placeLabels.noPrefectureLabels
     && result.checks.placeLabels.renderContract?.initial_leaflet_zoom === 5
     && sameJson(result.checks.placeLabels.renderContract?.max_labels, [
@@ -1232,9 +1323,13 @@ try {
     && result.checks.landSelectionDistance.exactGrid === contract.landMask.class1Example
     && result.checks.landSelectionDistance.distantOceanGrid === -1
     && result.checks.landSelectionDistance.hitRadiusSquared === 0.004
-    && result.checks.detail.floatingVisible
+    && result.checks.detail.floatingHidden
     && result.checks.detail.modalVisible
     && [1, 2].includes(result.checks.detail.landClass)
+    && result.checks.mapClickRoundTrip.clicks === 3
+    && result.checks.mapClickRoundTrip.firstGrid !== result.checks.mapClickRoundTrip.secondGrid
+    && result.checks.mapClickRoundTrip.selectedGrid === result.checks.mapClickRoundTrip.secondGrid
+    && result.checks.mapClickRoundTrip.modalVisible
     && result.checks.unassignedLand.landClass === 2
     && result.checks.unassignedLand.calendarTitle.includes('日本陸域・都道府県未割当')
     && result.checks.unassignedLand.calendarText.includes('週間傾向なし')
@@ -1262,6 +1357,12 @@ try {
     && result.checks.legacyTabIgnored.managementHidden
     && result.checks.legacyTabIgnored.mapVisible
     && result.checks.mydataLazyBefore
+    && result.checks.importSanitization.forbidden.length === 0
+    && result.checks.importSanitization.gridId === result.checks.contract.landMask.class1Example
+    && sameJson(Object.keys(result.checks.importSanitization.location).sort(), ['grid_id', 'label'])
+    && sameMembers(result.checks.importSanitization.logTypes, ['water_full', 'rain_cover'])
+    && result.checks.importSanitization.advancedKeys.length === 0
+    && result.checks.importSanitization.observations === 0
     && result.checks.mydataManagementOpen.modalVisible
     && result.checks.mydataManagementOpen.managementVisible
     && result.checks.mydataManagementOpen.detailHidden
@@ -1307,7 +1408,8 @@ try {
     && sameMembers(result.checks.mydataMedakaNoStaleChart.visibleLogTypes, ['water_change', 'top_up', 'rain_cover'])
     && result.checks.mydataMedakaNoStaleChart.conditions.includes('メダカ容器')
     && result.checks.mydataMedakaLog.stored
-    && result.checks.mydataMedakaLog.type === 'water_change'
+    && result.checks.mydataMedakaLog.logCount === 3
+    && sameMembers(result.checks.mydataMedakaLog.logTypes, ['water_change', 'top_up', 'rain_cover'])
     && result.checks.mydataMedakaLog.validTimestamp
     && result.checks.mydataMedakaLog.modalItemId === 'audit-medaka-item'
     && result.checks.mydataOutsideNoStaleChart.chartHidden
