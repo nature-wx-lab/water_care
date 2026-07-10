@@ -98,7 +98,7 @@ def expected_files(manifest: dict[str, object]) -> set[str]:
     expected = set(ROOT_FILES) | set(STATIC_DATA_FILES) | set(VENDOR_FILES)
     hourly = manifest.get("hourly") or {}
     for references in (hourly.get("files") or {}).values():
-        for key in ("moisture", "labels", "rootrot_labels"):
+        for key in ("moisture", "labels", "rootrot_labels", "water_balance"):
             expected.add(safe_data_reference((references or {}).get(key)))
     for key in ("rain", "temperature"):
         expected.add(safe_data_reference(hourly.get(key)))
@@ -178,8 +178,29 @@ def verify(
         raise RuntimeError("deployment commit identity mismatch")
     if deployment.get("dataset_id") != manifest.get("dataset_id"):
         raise RuntimeError("deployment dataset identity mismatch")
-    if manifest.get("schema_version") != 4 or manifest.get("generator_version") != 4 or manifest.get("grid_count") != 31296:
+    if manifest.get("schema_version") != 4 or manifest.get("generator_version") != 5 or manifest.get("grid_count") != 31296:
         raise RuntimeError("public data schema/generator/grid contract mismatch")
+    hourly = manifest.get("hourly") or {}
+    hours = len(hourly.get("times") or [])
+    reforecast = hourly.get("reforecast") or {}
+    expected_reforecast = {
+        "schema_version": 1,
+        "dtype": "float32",
+        "byte_order": "little_endian",
+        "layout": "row_major_hours_grid",
+        "bytes_per_value": 4,
+        "unit": "percentage_points_per_hour",
+        "shape": [hours, 31296],
+        "delta_index_semantics": "delta_at_index_h_advances_state_from_h_minus_1_to_h",
+        "event_application": "after_transition_at_event_index",
+        "water_full_target_pct": 95,
+        "water_light_increment_pct": 40,
+        "scope": "standard_mode_water_balance_only",
+    }
+    if any(reforecast.get(key) != value for key, value in expected_reforecast.items()):
+        raise RuntimeError("public MyData reforecast contract mismatch")
+    if not str(reforecast.get("first_index_note") or "").strip() or not str(reforecast.get("privacy_note") or "").strip():
+        raise RuntimeError("public MyData reforecast notes are missing")
 
     core_hashes = deployment.get("core_sha256") or {}
     if set(core_hashes) != CORE_FILES:

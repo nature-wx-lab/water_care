@@ -14,6 +14,8 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 const consoleProblems = [];
 const failedResponses = [];
 const dataRequests = [];
+const allRequests = [];
+page.on('request', request => allRequests.push(request.url()));
 page.on('console', message => {
   const text = message.text();
   // Leaflet may request GSI tiles that intentionally return 404 outside the
@@ -132,19 +134,32 @@ try {
     }
     const rootrotCodes = new Set();
     const plantHourly = {};
+    const waterBalanceStats = {};
     for (const [mode, refs] of Object.entries(manifest.hourly?.files || {})) {
-      const [moistureResponse, labelResponse, rootrotResponse] = await Promise.all([
+      const [moistureResponse, labelResponse, rootrotResponse, waterBalanceResponse] = await Promise.all([
         fetch(`./data/${refs.moisture}?v=${encodeURIComponent(manifest.dataset_id)}`),
         fetch(`./data/${refs.labels}?v=${encodeURIComponent(manifest.dataset_id)}`),
         fetch(`./data/${refs.rootrot_labels}?v=${encodeURIComponent(manifest.dataset_id)}`),
+        fetch(`./data/${refs.water_balance}?v=${encodeURIComponent(manifest.dataset_id)}`),
       ]);
       if (!moistureResponse.ok) throw new Error(`hourly moisture audit ${moistureResponse.status}`);
       if (!labelResponse.ok) throw new Error(`hourly label audit ${labelResponse.status}`);
       if (!rootrotResponse.ok) throw new Error(`rootrot audit ${rootrotResponse.status}`);
+      if (!waterBalanceResponse.ok) throw new Error(`water balance audit ${waterBalanceResponse.status}`);
       const moisture = new Uint8Array(await moistureResponse.arrayBuffer());
       const labels = new Uint8Array(await labelResponse.arrayBuffer());
       const rootrot = new Uint8Array(await rootrotResponse.arrayBuffer());
-      plantHourly[mode] = { moisture, labels, rootrot };
+      const waterBalance = new Float32Array(await waterBalanceResponse.arrayBuffer());
+      let minimum = Infinity;
+      let maximum = -Infinity;
+      let finite = true;
+      for (const value of waterBalance) {
+        if (!Number.isFinite(value)) finite = false;
+        minimum = Math.min(minimum, value);
+        maximum = Math.max(maximum, value);
+      }
+      waterBalanceStats[mode] = { length: waterBalance.length, minimum, maximum, finite };
+      plantHourly[mode] = { moisture, labels, rootrot, waterBalance };
       for (const value of rootrot) rootrotCodes.add(value);
     }
     const timeIndexes = new Map(manifest.hourly.times.map((value, index) => [value, index]));
@@ -272,6 +287,8 @@ try {
       presetVersion: presets.preset_version,
       conditionApplication: manifest.condition_application,
       conditionControls: presets.condition_controls,
+      reforecast: manifest.hourly.reforecast,
+      waterBalanceStats,
       manifestRootrot: manifest.rootrot_contract,
       presetRootrot: presets.rootrot_contract,
       rootrotCodes: [...rootrotCodes].sort((a, b) => a - b),
@@ -304,6 +321,35 @@ try {
     const element = document.getElementById(id);
     return [name, [...(element?.options || [])].map(option => option.value)];
   })), controlElements);
+  result.checks.conditionCombinations = await page.evaluate(ids => {
+    const elements = Object.values(ids).map(id => document.getElementById(id));
+    const originals = elements.map(element => element.value);
+    const options = elements.map(element => [...element.options].map(option => option.value));
+    let count = 0;
+    const errors = [];
+    const visit = index => {
+      if (index < elements.length) {
+        for (const value of options[index]) {
+          elements[index].value = value;
+          visit(index + 1);
+        }
+        return;
+      }
+      try {
+        const offset = conditionOffset();
+        const adjusted = [0, 50, 100].map(value => Math.max(0, Math.min(100, value + offset)));
+        if (!Number.isFinite(offset) || adjusted.some(value => !Number.isFinite(value) || value < 0 || value > 100)) {
+          throw new Error(`invalid offset ${offset}`);
+        }
+        count += 1;
+      } catch (error) {
+        errors.push(String(error));
+      }
+    };
+    visit(0);
+    elements.forEach((element, index) => { element.value = originals[index]; });
+    return { count, errors, restored: elements.every((element, index) => element.value === originals[index]) };
+  }, controlElements);
   result.checks.observedOptions = await page.$eval('#observedLayer', element => [...element.options].map(option => option.value));
   result.checks.timelineInitial = await page.evaluate(() => {
     const range = document.querySelector('#timelineRange');
@@ -536,6 +582,230 @@ try {
     status: document.querySelector('#mapStatus')?.textContent || '',
   }));
 
+  const mydataRequestStart = allRequests.length;
+  result.checks.mydataLazyBefore = await page.evaluate(() => {
+    const refs = analysis.manifest.hourly.files.pot_outdoor;
+    return !analysis.hourly[refs.water_balance];
+  });
+  await page.click('#openMydata');
+  await page.waitForFunction(() => document.querySelector('#detailModal')?.hidden === false
+    && document.querySelector('#mydataView')?.hidden === false
+    && document.querySelector('#detailView')?.hidden === true);
+  result.checks.mydataManagementOpen = await page.evaluate(() => ({
+    modalVisible: !document.querySelector('#detailModal')?.hidden,
+    managementVisible: !document.querySelector('#mydataView')?.hidden,
+    detailHidden: Boolean(document.querySelector('#detailView')?.hidden),
+    commonModal: document.querySelector('#detailModal .detail-modal-card')?.contains(document.querySelector('#mydataView')),
+    formVisible: Boolean(document.querySelector('#itemForm')?.getBoundingClientRect().height),
+  }));
+  await page.fill('#itemName', '監査用マイデータ');
+  await page.selectOption('#itemMode', 'pot_outdoor');
+  await page.selectOption('#itemPreset', 'std_foliage');
+  await page.selectOption('#itemDryness', 'std');
+  await page.selectOption('#itemRain', 'std');
+  await page.click('#itemForm button[type="submit"]');
+  await page.waitForFunction(() => document.querySelectorAll('.mydata-mini-card').length === 1
+    && document.querySelector('#itemList')?.textContent.includes('監査用マイデータ'));
+  result.checks.mydataSetup = await page.evaluate(async () => {
+    const item = (await getItems()).find(row => row.name === '監査用マイデータ');
+    if (!item) throw new Error('MyData audit registration did not persist');
+    const mode = item.mode;
+    const refs = analysis.manifest.hourly.files[mode];
+    const n = analysis.manifest.grid_count;
+    const current = analysis.manifest.current_index;
+    const count = analysis.manifest.hourly.times.length;
+    const gridId = item.grid_id;
+    const before = await itemPlantForecast(item);
+    const firstEventIndex = Math.max(0, current - 1);
+    item.logs = [
+      { ts: analysis.manifest.hourly.times[firstEventIndex], type: 'water_full', note: '' },
+      { ts: analysis.manifest.hourly.times[current], type: 'water_light', note: '' },
+    ];
+    await putItem(item);
+    await renderItems();
+    const after = await itemPlantForecast(item);
+    const balance = await buffer(refs.water_balance, Float32Array);
+    const expected = Float32Array.from(before.values);
+    const events = itemWaterEvents(item);
+    const byIndex = new Map();
+    for (const event of events) {
+      if (!byIndex.has(event.index)) byIndex.set(event.index, []);
+      byIndex.get(event.index).push(event);
+    }
+    if (events.length) {
+      const first = events[0].index;
+      let state = expected[first];
+      for (let h = first; h < count; h += 1) {
+        if (h > first) state = Math.max(0, Math.min(100, state + balance[h * n + gridId]));
+        for (const event of byIndex.get(h) || []) {
+          state = event.log.type === 'water_full'
+            ? after.contract.water_full_target_pct
+            : Math.min(100, state + after.contract.water_light_increment_pct);
+        }
+        expected[h] = state;
+      }
+    }
+    let replayMaxError = 0;
+    for (let h = 0; h < count; h += 1) replayMaxError = Math.max(replayMaxError, Math.abs(after.values[h] - expected[h]));
+    const searchStart = Math.max(current, events.at(-1)?.index ?? 0);
+    let expectedWateringIndex = -1;
+    for (let h = searchStart; h < count; h += 1) {
+      if (expected[h] <= wateringLine(mode)) { expectedWateringIndex = h; break; }
+    }
+    const expectedWateringTime = expectedWateringIndex >= 0
+      ? new Date(analysis.manifest.hourly.times[expectedWateringIndex]).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: 'numeric' })
+      : '提供期間内は未到達';
+    const actualWateringTime = await wateringTime(item, after);
+    const oldItem = { ...item, logs: [{
+      ts: new Date(new Date(analysis.manifest.hourly.times[0]).getTime() - 3600000).toISOString(),
+      type: 'water_full', note: '',
+    }] };
+    const oldForecast = await itemPlantForecast(oldItem);
+    const futureItem = { ...item, logs: [{
+      ts: new Date(new Date(analysis.manifest.hourly.times.at(-1)).getTime() + 3600000).toISOString(),
+      type: 'water_light', note: '',
+    }] };
+    const futureForecast = await itemPlantForecast(futureItem);
+    const displayIndex = itemDisplayIndex(after);
+    return {
+      itemId: item.id,
+      itemName: item.name,
+      gridId,
+      lazyAfter: Boolean(analysis.hourly[refs.water_balance]),
+      registeredGridMatches: gridId === analysis.selectedGrid,
+      eventCount: events.length,
+      replayMaxError,
+      replayFiniteBounded: after.values.every(value => Number.isFinite(value) && value >= 0 && value <= 100),
+      searchMatches: actualWateringTime === expectedWateringTime,
+      actualWateringTime,
+      expectedWateringTime,
+      unchangedBeforeEvent: after.values.slice(0, firstEventIndex).every((value, index) => Math.abs(value - before.values[index]) < 0.001),
+      oldLogIgnored: oldForecast.events.length === 0 && oldForecast.ignoredEvents.length === 1,
+      oldLogUnchanged: oldForecast.values.every((value, index) => Math.abs(value - before.values[index]) < 0.001),
+      futureLogIgnored: futureForecast.events.length === 0 && futureForecast.ignoredEvents.length === 1,
+      futureLogUnchanged: futureForecast.values.every((value, index) => Math.abs(value - before.values[index]) < 0.001),
+      expectedModalMoisture: `${Math.round(expected[displayIndex])}%`,
+      miniCards: document.querySelectorAll('.mydata-mini-card').length,
+      miniText: document.querySelector('#mydataMiniList')?.textContent || '',
+      managementText: document.querySelector('#itemList')?.textContent || '',
+      mapWetExists: Boolean(document.querySelector('#mapWet')),
+    };
+  });
+  await page.click('.mydata-mini-card');
+  await page.waitForFunction(id => document.querySelector('#detailModal')?.hidden === false
+    && document.querySelector('#detailModal')?.dataset.itemId === id
+    && document.querySelector('#detailView')?.hidden === false
+    && document.querySelector('#mydataView')?.hidden === true
+    && document.querySelector('#detailReason')?.textContent.includes('以降を再計算'), result.checks.mydataSetup.itemId);
+  result.checks.mydataDetail = await page.evaluate(() => ({
+    modalItemId: document.querySelector('#detailModal')?.dataset.itemId || '',
+    grid: document.querySelector('#detailGrid')?.textContent || '',
+    moisture: document.querySelector('#detailMoisture')?.textContent || '',
+    label: document.querySelector('#detailLabel')?.textContent || '',
+    reason: document.querySelector('#detailReason')?.textContent || '',
+    conditions: document.querySelector('#detailConditions')?.textContent || '',
+    calendar: document.querySelector('#calendarDays')?.textContent || '',
+    actionsVisible: !document.querySelector('#mydataDetailActions')?.hidden,
+    chartVisible: !document.querySelector('#detailChart')?.hidden,
+    detailVisible: !document.querySelector('#detailView')?.hidden,
+    managementHidden: Boolean(document.querySelector('#mydataView')?.hidden),
+  }));
+  await page.click('#manageMydata');
+  await page.waitForFunction(() => document.querySelector('#detailModal')?.hidden === false
+    && document.querySelector('#mydataView')?.hidden === false
+    && document.querySelector('#detailView')?.hidden === true);
+  result.checks.mydataManagementReturn = await page.evaluate(() => ({
+    modalVisible: !document.querySelector('#detailModal')?.hidden,
+    managementVisible: !document.querySelector('#mydataView')?.hidden,
+    detailHidden: Boolean(document.querySelector('#detailView')?.hidden),
+    itemVisible: document.querySelector('#itemList')?.textContent.includes('監査用マイデータ'),
+  }));
+  await page.click('#itemList [data-item-detail]');
+  await page.waitForFunction(id => document.querySelector('#detailModal')?.dataset.itemId === id
+    && document.querySelector('#detailView')?.hidden === false
+    && document.querySelector('#mydataView')?.hidden === true, result.checks.mydataSetup.itemId);
+  await page.evaluate(async id => {
+    const item = (await getItems()).find(row => row.id === id);
+    await openItemDetail({ ...item, id: 'audit-medaka-item', mode: 'medaka', preset_id: 'medaka_60l' });
+  }, result.checks.mydataSetup.itemId);
+  result.checks.mydataMedakaNoStaleChart = await page.evaluate(() => {
+    const canvas = document.querySelector('#detailChart');
+    const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+    return {
+      chartHidden: canvas.hidden,
+      titleHidden: document.querySelector('#detailChartTitle')?.hidden,
+      chartCleared: !pixels.some((value, index) => index % 4 === 3 && value !== 0),
+      logButtonsHidden: [...document.querySelectorAll('[data-detail-log]')].every(button => button.hidden),
+      conditions: document.querySelector('#detailConditions')?.textContent || '',
+    };
+  });
+  await page.evaluate(async ({ id, gridId }) => {
+    const item = (await getItems()).find(row => row.id === id);
+    await openItemDetail({ ...item, id: 'audit-outside-item', grid_id: gridId, location: { grid_id: gridId } });
+  }, { id: result.checks.mydataSetup.itemId, gridId: result.checks.contract.landMask.class0Example });
+  result.checks.mydataOutsideNoStaleChart = await page.evaluate(() => {
+    const canvas = document.querySelector('#detailChart');
+    const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+    return {
+      chartHidden: canvas.hidden,
+      titleHidden: document.querySelector('#detailChartTitle')?.hidden,
+      chartCleared: !pixels.some((value, index) => index % 4 === 3 && value !== 0),
+      logButtonsHidden: [...document.querySelectorAll('[data-detail-log]')].every(button => button.hidden),
+      label: document.querySelector('#detailLabel')?.textContent || '',
+    };
+  });
+  await page.click('#detailModalClose');
+  await page.evaluate(() => { document.querySelector('#floatingDetail').hidden = false; });
+  await page.click('#openDetailModal');
+  await page.waitForFunction(gridId => document.querySelector('#detailModal')?.hidden === false
+    && !document.querySelector('#detailModal')?.dataset.itemId
+    && document.querySelector('#detailGrid')?.textContent.includes(`格子 ${gridId}`), result.checks.contract.landMask.class1Example);
+  result.checks.mapDetailRestoredAfterMydata = await page.evaluate(gridId => ({
+    selectedGrid: analysis.selectedGrid,
+    expectedGrid: gridId,
+    modalItemId: document.querySelector('#detailModal')?.dataset.itemId || '',
+    grid: document.querySelector('#detailGrid')?.textContent || '',
+    actionsHidden: Boolean(document.querySelector('#mydataDetailActions')?.hidden),
+    conditionsHidden: Boolean(document.querySelector('#detailConditions')?.hidden),
+    chartVisible: !document.querySelector('#detailChart')?.hidden,
+    detailVisible: !document.querySelector('#detailView')?.hidden,
+    managementHidden: Boolean(document.querySelector('#mydataView')?.hidden),
+  }), result.checks.contract.landMask.class1Example);
+  await page.click('#detailModalClose');
+  result.checks.labelOpacity = await page.evaluate(() => {
+    const control = document.querySelector('#labelOpacity');
+    control.value = '35';
+    control.dispatchEvent(new Event('input', { bubbles: true }));
+    return {
+      value: Number(control.value),
+      runtime: labelOpacity,
+      markerOpacities: labelLayer?.getLayers().slice(0, 5).map(layer => layer.options.opacity) || [],
+    };
+  });
+  result.checks.legacyConditions = await page.evaluate(() => {
+    applySharedConditions(['flower', 'large', 'very_dry', 'cover', 'west', 'very_fast', 'weak']);
+    return Object.fromEntries(SHARED_CONDITION_IDS.map(id => [id, document.getElementById(id).value]));
+  });
+  await page.click('#copyLink');
+  await page.waitForFunction(() => Boolean(document.querySelector('#copyLink')?.dataset.lastUrl));
+  result.checks.sharedPrivacy = await page.evaluate(({ itemId, itemName }) => {
+    const url = new URL(document.querySelector('#copyLink').dataset.lastUrl);
+    return {
+      url: url.toString(),
+      conditions: (url.searchParams.get('c') || '').split(','),
+      hasTab: url.searchParams.has('tab'),
+      hasMydataId: url.toString().includes(itemId),
+      hasMydataName: url.toString().includes(encodeURIComponent(itemName)),
+      hasObsoleteWetValue: (url.searchParams.get('c') || '').split(',').length === 7,
+    };
+  }, { itemId: result.checks.mydataSetup.itemId, itemName: result.checks.mydataSetup.itemName });
+  result.checks.mydataNetwork = {
+    requests: allRequests.slice(mydataRequestStart),
+    containsItemId: allRequests.slice(mydataRequestStart).some(url => url.includes(result.checks.mydataSetup.itemId)),
+    containsItemName: allRequests.slice(mydataRequestStart).some(url => url.includes(encodeURIComponent(result.checks.mydataSetup.itemName))),
+  };
+  await page.evaluate(async id => { await deleteItem(id); await renderItems(); }, result.checks.mydataSetup.itemId);
+
   const legacyUrl = new URL(targetUrl);
   legacyUrl.searchParams.set('grid', String(result.checks.contract.landMask.class0Example));
   const legacyPage = await browser.newPage({ viewport: { width: 1440, height: 900 } });
@@ -554,12 +824,48 @@ try {
     await legacyPage.close();
   }
 
+  const legacyTabUrl = new URL(targetUrl);
+  legacyTabUrl.searchParams.set('tab', 'calendar');
+  legacyTabUrl.searchParams.set('grid', String(result.checks.contract.landMask.class1Example));
+  legacyTabUrl.searchParams.set('layer', 'moisture');
+  const legacyTabPage = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  try {
+    await legacyTabPage.goto(legacyTabUrl.toString(), { waitUntil: 'domcontentloaded', timeout: 120000 });
+    await legacyTabPage.waitForFunction(gridId => Boolean(document.documentElement.dataset.datasetId)
+      && analysis.selectedGrid === gridId
+      && document.querySelector('#mapInfoBar')?.textContent.startsWith('うるおい残量MAP'), result.checks.contract.landMask.class1Example, { timeout: 120000 });
+    result.checks.legacyTabIgnored = await legacyTabPage.evaluate(gridId => ({
+      selectedGrid: analysis.selectedGrid,
+      expectedGrid: gridId,
+      modalHidden: Boolean(document.querySelector('#detailModal')?.hidden),
+      managementHidden: Boolean(document.querySelector('#mydataView')?.hidden),
+      mapVisible: document.querySelector('#mapView')?.classList.contains('active'),
+    }), result.checks.contract.landMask.class1Example);
+  } finally {
+    await legacyTabPage.close();
+  }
+
   result.checks.versionedData = {
     count: dataRequests.length,
     allVersioned: dataRequests.length > 0 && dataRequests.every(url => new URL(url).searchParams.get('v') === result.checks.initial.datasetId),
   };
   await page.setViewportSize({ width: 720, height: 900 });
   await page.waitForTimeout(100);
+  await page.click('#openMydata');
+  await page.waitForFunction(() => document.querySelector('#detailModal')?.hidden === false
+    && document.querySelector('#mydataView')?.hidden === false);
+  result.checks.mobileMydataManagement = await page.evaluate(() => {
+    const form = document.querySelector('#itemForm');
+    const modal = document.querySelector('#detailModal');
+    const management = document.querySelector('#mydataView');
+    return {
+      modalVisible: !modal?.hidden && Boolean(modal?.getBoundingClientRect().height),
+      managementVisible: !management?.hidden && Boolean(management?.getBoundingClientRect().height),
+      formVisible: Boolean(form?.getBoundingClientRect().height),
+      noHorizontalOverflow: document.documentElement.scrollWidth <= window.innerWidth,
+    };
+  });
+  await page.click('#closeMydata');
   result.checks.mobileDisclosure = await page.evaluate(() => {
     const assumption = document.querySelector('#modelAssumption');
     const assumptionRect = assumption?.getBoundingClientRect();
@@ -579,6 +885,28 @@ try {
   const conditionApplicationOk = contract.conditionApplication?.mode === 'client_proxy'
     && contract.conditionApplication?.physical_recompute === false
     && contract.conditionApplication?.preset_path === 'presets.json';
+  const expectedWaterBalanceLength = contract.hourlyCount * 31296;
+  const reforecastContractOk = contract.reforecast?.schema_version === 1
+    && contract.reforecast?.dtype === 'float32'
+    && contract.reforecast?.byte_order === 'little_endian'
+    && contract.reforecast?.layout === 'row_major_hours_grid'
+    && contract.reforecast?.bytes_per_value === 4
+    && contract.reforecast?.unit === 'percentage_points_per_hour'
+    && sameJson(contract.reforecast?.shape, [contract.hourlyCount, 31296])
+    && contract.reforecast?.delta_index_semantics === 'delta_at_index_h_advances_state_from_h_minus_1_to_h'
+    && contract.reforecast?.event_application === 'after_transition_at_event_index'
+    && contract.reforecast?.water_full_target_pct === 95
+    && contract.reforecast?.water_light_increment_pct === 40
+    && contract.reforecast?.scope === 'standard_mode_water_balance_only'
+    && typeof contract.reforecast?.first_index_note === 'string'
+    && contract.reforecast.first_index_note.length > 0
+    && typeof contract.reforecast?.privacy_note === 'string'
+    && contract.reforecast.privacy_note.length > 0
+    && sameMembers(Object.keys(contract.waterBalanceStats || {}), ['pot_outdoor', 'ground', 'farm'])
+    && Object.values(contract.waterBalanceStats || {}).every(stats => stats.length === expectedWaterBalanceLength
+      && stats.finite
+      && Number.isFinite(stats.minimum) && Number.isFinite(stats.maximum)
+      && stats.minimum <= stats.maximum && stats.minimum >= -500 && stats.maximum <= 500);
   const landMaskOk = contract.landMask?.schemaVersion === 1
     && contract.landMask?.gridCount === 31296
     && contract.landMask?.classesLength === 31296
@@ -604,7 +932,10 @@ try {
           && Number.isFinite(option.client_proxy.moisture_offset_pct)
           && option?.physical_target?.applied === false);
     })
-    && Object.entries(controlOptions).every(([name, expected]) => sameJson(result.checks.controls[name], expected));
+    && Object.entries(controlOptions).every(([name, expected]) => sameJson(result.checks.controls[name], expected))
+    && result.checks.conditionCombinations.count === 972
+    && result.checks.conditionCombinations.errors.length === 0
+    && result.checks.conditionCombinations.restored;
   const rootrotContractOk = sameJson(contract.manifestRootrot?.labels, rootrotLabels)
     && sameJson(contract.presetRootrot?.labels, rootrotLabels)
     && sameJson(contract.manifestRootrot?.wet_stress_ratio_thresholds, [0.3, 0.6, 1.0])
@@ -682,6 +1013,7 @@ try {
   result.checks.contractGate = {
     landMaskOk,
     conditionApplicationOk,
+    reforecastContractOk,
     controlContractOk,
     rootrotContractOk,
     plantReferencesOk,
@@ -725,7 +1057,7 @@ try {
     && result.checks.initialCanvas.height > 0
     && result.checks.initialCanvas.colored > 10
     && contract.schemaVersion >= 4
-    && contract.generatorVersion >= 4
+    && contract.generatorVersion === 5
     && contract.distributionStatsBasis === 'pre_quantized_float'
     && landMaskOk
     && contract.datasetId === result.checks.initial.datasetId
@@ -734,6 +1066,7 @@ try {
     && Boolean(contract.manifestPresetVersion)
     && contract.manifestPresetVersion === contract.presetVersion
     && conditionApplicationOk
+    && reforecastContractOk
     && controlContractOk
     && rootrotContractOk
     && plantReferencesOk
@@ -757,6 +1090,10 @@ try {
     && result.checks.mobileDisclosure.insideMap
     && result.checks.mobileDisclosure.noHorizontalOverflow
     && result.checks.mobileDisclosure.text === result.checks.initial.modelAssumption
+    && result.checks.mobileMydataManagement.modalVisible
+    && result.checks.mobileMydataManagement.managementVisible
+    && result.checks.mobileMydataManagement.formVisible
+    && result.checks.mobileMydataManagement.noHorizontalOverflow
     && observedWindowsOk
     && result.checks.rainDifference.info.includes('24時間降水 前日差')
     && result.checks.rainDifference.canvasVisible
@@ -788,6 +1125,82 @@ try {
     && result.checks.legacySharedOutside.floatingVisible
     && result.checks.legacySharedOutside.floatingGrid.includes('陸域マスク外（旧登録）')
     && result.checks.legacySharedOutside.status.includes('共有リンクの地点')
+    && result.checks.legacyTabIgnored.selectedGrid === result.checks.legacyTabIgnored.expectedGrid
+    && result.checks.legacyTabIgnored.modalHidden
+    && result.checks.legacyTabIgnored.managementHidden
+    && result.checks.legacyTabIgnored.mapVisible
+    && result.checks.mydataLazyBefore
+    && result.checks.mydataManagementOpen.modalVisible
+    && result.checks.mydataManagementOpen.managementVisible
+    && result.checks.mydataManagementOpen.detailHidden
+    && result.checks.mydataManagementOpen.commonModal
+    && result.checks.mydataManagementOpen.formVisible
+    && result.checks.mydataSetup.lazyAfter
+    && result.checks.mydataSetup.registeredGridMatches
+    && result.checks.mydataSetup.eventCount === 2
+    && result.checks.mydataSetup.replayMaxError < 0.0001
+    && result.checks.mydataSetup.replayFiniteBounded
+    && result.checks.mydataSetup.searchMatches
+    && result.checks.mydataSetup.unchangedBeforeEvent
+    && result.checks.mydataSetup.oldLogIgnored
+    && result.checks.mydataSetup.oldLogUnchanged
+    && result.checks.mydataSetup.futureLogIgnored
+    && result.checks.mydataSetup.futureLogUnchanged
+    && result.checks.mydataSetup.miniCards === 1
+    && result.checks.mydataSetup.miniText.includes('監査用マイデータ')
+    && result.checks.mydataSetup.managementText.includes('監査用マイデータ')
+    && result.checks.mydataSetup.mapWetExists === false
+    && result.checks.mydataDetail.modalItemId === result.checks.mydataSetup.itemId
+    && result.checks.mydataDetail.grid.includes('監査用マイデータ')
+    && result.checks.mydataDetail.moisture === result.checks.mydataSetup.expectedModalMoisture
+    && result.checks.mydataDetail.reason.includes('以降を再計算')
+    && result.checks.mydataDetail.conditions.includes('屋外鉢植え')
+    && result.checks.mydataDetail.conditions.includes('標準観葉植物')
+    && result.checks.mydataDetail.conditions.includes('乾きやすさ 標準')
+    && result.checks.mydataDetail.conditions.includes('雨の効きやすさ 標準')
+    && result.checks.mydataDetail.conditions.includes('補正値はまだ物理再計算へ反映しません')
+    && result.checks.mydataDetail.calendar.includes('水やり記録を反映')
+    && result.checks.mydataDetail.actionsVisible
+    && result.checks.mydataDetail.chartVisible
+    && result.checks.mydataDetail.detailVisible
+    && result.checks.mydataDetail.managementHidden
+    && result.checks.mydataManagementReturn.modalVisible
+    && result.checks.mydataManagementReturn.managementVisible
+    && result.checks.mydataManagementReturn.detailHidden
+    && result.checks.mydataManagementReturn.itemVisible
+    && result.checks.mydataMedakaNoStaleChart.chartHidden
+    && result.checks.mydataMedakaNoStaleChart.titleHidden
+    && result.checks.mydataMedakaNoStaleChart.chartCleared
+    && result.checks.mydataMedakaNoStaleChart.logButtonsHidden
+    && result.checks.mydataMedakaNoStaleChart.conditions.includes('メダカ容器')
+    && result.checks.mydataOutsideNoStaleChart.chartHidden
+    && result.checks.mydataOutsideNoStaleChart.titleHidden
+    && result.checks.mydataOutsideNoStaleChart.chartCleared
+    && result.checks.mydataOutsideNoStaleChart.logButtonsHidden
+    && result.checks.mydataOutsideNoStaleChart.label === '対象外'
+    && result.checks.mapDetailRestoredAfterMydata.selectedGrid === result.checks.mapDetailRestoredAfterMydata.expectedGrid
+    && result.checks.mapDetailRestoredAfterMydata.modalItemId === ''
+    && result.checks.mapDetailRestoredAfterMydata.grid.includes(`格子 ${result.checks.mapDetailRestoredAfterMydata.expectedGrid}`)
+    && result.checks.mapDetailRestoredAfterMydata.actionsHidden
+    && result.checks.mapDetailRestoredAfterMydata.conditionsHidden
+    && result.checks.mapDetailRestoredAfterMydata.chartVisible
+    && result.checks.mapDetailRestoredAfterMydata.detailVisible
+    && result.checks.mapDetailRestoredAfterMydata.managementHidden
+    && result.checks.labelOpacity.value === 35
+    && Math.abs(result.checks.labelOpacity.runtime - 0.35) < 0.001
+    && result.checks.labelOpacity.markerOpacities.length > 0
+    && result.checks.labelOpacity.markerOpacities.every(value => Math.abs(value - 0.35) < 0.001)
+    && sameJson(result.checks.legacyConditions, {
+      mapPlant: 'foliage', mapSize: 'large', mapDrying: 'dry',
+      mapRain: 'inside', mapSun: 'sun', mapSpeed: 'fast',
+    })
+    && result.checks.sharedPrivacy.conditions.length === 6
+    && !result.checks.sharedPrivacy.hasTab
+    && !result.checks.sharedPrivacy.hasMydataId
+    && !result.checks.sharedPrivacy.hasMydataName
+    && !result.checks.sharedPrivacy.hasObsoleteWetValue
+    && !result.checks.mydataNetwork.containsItemId
+    && !result.checks.mydataNetwork.containsItemName
     && result.checks.versionedData.allVersioned;
 } catch (error) {
   result.failure = String(error?.stack || error);

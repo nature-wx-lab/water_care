@@ -35,7 +35,7 @@ def verify_once(
         "generator_commit": generator_commit,
         "dataset_id": dataset_id,
         "data_schema_version": 4,
-        "generator_version": 4,
+        "generator_version": 5,
         "grid_count": 31296,
     }
     mismatches = {key: (deployment.get(key), value) for key, value in expected.items() if deployment.get(key) != value}
@@ -50,12 +50,32 @@ def verify_once(
     if (
         manifest.get("dataset_id") != dataset_id
         or manifest.get("schema_version") != 4
-        or manifest.get("generator_version") != 4
+        or manifest.get("generator_version") != 5
         or manifest.get("distribution_stats_basis") != "pre_quantized_float"
         or manifest.get("distribution_stats_scope", {}).get("included_classes") != [1, 2]
         or manifest.get("distribution_stats_scope", {}).get("grid_count") != 12404
     ):
         raise RuntimeError("deployed data manifest mismatch")
+    hourly = manifest.get("hourly") or {}
+    reforecast = hourly.get("reforecast") or {}
+    expected_reforecast = {
+        "schema_version": 1,
+        "dtype": "float32",
+        "byte_order": "little_endian",
+        "layout": "row_major_hours_grid",
+        "bytes_per_value": 4,
+        "unit": "percentage_points_per_hour",
+        "shape": [len(hourly.get("times") or []), 31296],
+        "delta_index_semantics": "delta_at_index_h_advances_state_from_h_minus_1_to_h",
+        "event_application": "after_transition_at_event_index",
+        "water_full_target_pct": 95,
+        "water_light_increment_pct": 40,
+        "scope": "standard_mode_water_balance_only",
+    }
+    if any(reforecast.get(key) != value for key, value in expected_reforecast.items()):
+        raise RuntimeError("deployed MyData reforecast contract mismatch")
+    if not str(reforecast.get("first_index_note") or "").strip() or not str(reforecast.get("privacy_note") or "").strip():
+        raise RuntimeError("deployed MyData reforecast notes are missing")
     required_land_core = {
         "data/static/grid_land_class.bin",
         "data/static/grid_land_class_manifest.json",
