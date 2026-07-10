@@ -13,6 +13,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Validate update workflow cache contract
+        run: python scripts/verify_workflow_cache.py
       - name: Scan files and reachable history
         env:
           PRIVACY_DENYLIST: ${{ secrets.PRIVACY_DENYLIST }}
