@@ -1,0 +1,270 @@
+name: Update and deploy water care
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "27 * * * *"
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: Deploy the verified preview to GitHub Pages
+        required: true
+        default: false
+        type: boolean
+
+permissions: {}
+
+concurrency:
+  group: water-care-pages-production
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.event_name == 'workflow_dispatch' || vars.WATER_CARE_AUTOMATION_READY == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      dataset_id: ${{ steps.metadata.outputs.dataset_id }}
+      generator_commit: ${{ steps.generator.outputs.commit }}
+    steps:
+      - name: Check out public site
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          path: site
+
+      - name: Require private generator settings
+        env:
+          GENERATOR_REPOSITORY: ${{ vars.WATER_CARE_GENERATOR_REPOSITORY }}
+          GENERATOR_SSH_KEY: ${{ secrets.WATER_CARE_GENERATOR_SSH_KEY }}
+        run: |
+          test -n "$GENERATOR_REPOSITORY" || { echo "WATER_CARE_GENERATOR_REPOSITORY is not configured"; exit 1; }
+          test -n "$GENERATOR_SSH_KEY" || { echo "WATER_CARE_GENERATOR_SSH_KEY is not configured"; exit 1; }
+
+      - name: Check out private generator
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: ${{ vars.WATER_CARE_GENERATOR_REPOSITORY }}
+          ref: ${{ vars.WATER_CARE_GENERATOR_REF || 'main' }}
+          ssh-key: ${{ secrets.WATER_CARE_GENERATOR_SSH_KEY }}
+          ssh-strict: true
+          ssh-user: git
+          persist-credentials: false
+          fetch-depth: 1
+          submodules: false
+          lfs: false
+          path: generator
+
+      - name: Record generator commit
+        id: generator
+        run: echo "commit=$(git -C generator rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: generator/scripts/water_care/requirements-runner.txt
+
+      - name: Install generator dependencies
+        run: python -m pip install --requirement generator/scripts/water_care/requirements-runner.txt
+
+      - name: Compute daily public-input cache key
+        id: cache-date
+        run: echo "date=$(TZ=Asia/Tokyo date +%Y%m%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Probe official source identities
+        id: sources
+        working-directory: generator
+        run: |
+          python - <<'PY'
+          import os
+          from scripts.water_care.run_hourly import (
+              AMEDAS_LATEST,
+              WDIST_TARGETS,
+              WEEKLY_PROBE,
+              compact_amedas,
+              fetch,
+              remote_wdist_basetime,
+          )
+
+          amedas = compact_amedas(fetch(AMEDAS_LATEST))
+          wdist = remote_wdist_basetime(fetch(WDIST_TARGETS, as_json=True))
+          weekly = str(fetch(WEEKLY_PROBE, as_json=True)[1]["reportDatetime"])
+          weekly_key = "".join(character for character in weekly if character.isdigit())
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"amedas={amedas}\nwdist={wdist}\nweekly={weekly_key}\n")
+          PY
+
+      - name: Restore rolling AMeDAS cache
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: generator/outputs/uruoi/input_cache/raw
+          key: water-care-amedas-v1-${{ runner.os }}-${{ steps.cache-date.outputs.date }}
+          restore-keys: |
+            water-care-amedas-v1-${{ runner.os }}-
+
+      - name: Restore matching weather-distribution cache
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: generator/outputs/uruoi/wdist
+          key: water-care-wdist-v1-${{ runner.os }}-${{ steps.sources.outputs.wdist }}
+          restore-keys: |
+            water-care-wdist-v1-${{ runner.os }}-
+
+      - name: Restore matching weekly-forecast cache
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: generator/outputs/uruoi/input_cache/weekly
+          key: water-care-weekly-v1-${{ runner.os }}-${{ steps.sources.outputs.weekly }}
+          restore-keys: |
+            water-care-weekly-v1-${{ runner.os }}-
+
+      - name: Generate and verify schema 4 data
+        working-directory: generator
+        env:
+          WATER_CARE_DATA_DIR: ${{ github.workspace }}/site/data
+        run: python scripts/water_care/run_hourly.py
+
+      - name: Verify public candidate boundary
+        working-directory: site
+        env:
+          PRIVACY_DENYLIST: ${{ secrets.PRIVACY_DENYLIST }}
+        run: |
+          git config user.name nature-wx-lab
+          git config user.email nature-wx-lab@users.noreply.github.com
+          python scripts/preflight_public_repo.py
+          python scripts/privacy_gate.py
+          git diff --check
+
+      - name: Build allowlisted Pages payload
+        run: |
+          python generator/scripts/water_care/build_pages_artifact.py \
+            --site-dir site \
+            --output-dir pages \
+            --source-commit "$GITHUB_SHA" \
+            --generator-commit "${{ steps.generator.outputs.commit }}"
+
+      - name: Record dataset identity
+        id: metadata
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          deployment = json.loads(Path("pages/deployment.json").read_text())
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"dataset_id={deployment['dataset_id']}\n")
+          PY
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Install browser audit driver
+        env:
+          PLAYWRIGHT_PACKAGE: playwright-core
+          PLAYWRIGHT_VERSION: 1.61.1
+        run: npm install --no-save --no-package-lock "${PLAYWRIGHT_PACKAGE}@${PLAYWRIGHT_VERSION}"
+
+      - name: Audit exact Pages payload
+        run: |
+          browser="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$browser" || { echo "Chrome executable is unavailable"; exit 1; }
+          python -m http.server 8787 --directory pages >/tmp/water-care-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..20}; do
+            curl -fsS http://127.0.0.1:8787/deployment.json >/dev/null 2>&1 && break
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:8787/deployment.json >/dev/null
+          PLAYWRIGHT_MODULE=playwright-core BROWSER_EXECUTABLE="$browser" \
+            node site/scripts/audit_water_care.mjs http://127.0.0.1:8787/ \
+            > /tmp/water-care-local-audit.json
+          python -m json.tool /tmp/water-care-local-audit.json
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        with:
+          path: pages
+          retention-days: 1
+
+  deploy:
+    if: needs.build.result == 'success' && (github.event_name != 'workflow_dispatch' || inputs.deploy)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+
+      - name: Deploy verified artifact
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+
+  verify-public:
+    if: needs.deploy.result == 'success'
+    needs: [build, deploy]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Check out public verification scripts
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          path: site
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.11"
+
+      - name: Install verifier dependency
+        run: python -m pip install certifi==2026.5.20
+
+      - name: Verify deployed identity and hashes
+        run: |
+          python site/scripts/verify_deployed_pages.py \
+            --base-url "${{ needs.deploy.outputs.page_url }}" \
+            --source-commit "$GITHUB_SHA" \
+            --generator-commit "${{ needs.build.outputs.generator_commit }}" \
+            --dataset-id "${{ needs.build.outputs.dataset_id }}"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Install public browser audit driver
+        env:
+          PLAYWRIGHT_PACKAGE: playwright-core
+          PLAYWRIGHT_VERSION: 1.61.1
+        run: npm install --no-save --no-package-lock "${PLAYWRIGHT_PACKAGE}@${PLAYWRIGHT_VERSION}"
+
+      - name: Audit deployed Pages
+        run: |
+          browser="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$browser" || { echo "Chrome executable is unavailable"; exit 1; }
+          PLAYWRIGHT_MODULE=playwright-core BROWSER_EXECUTABLE="$browser" \
+            node site/scripts/audit_water_care.mjs "${{ needs.deploy.outputs.page_url }}" \
+            > /tmp/water-care-public-audit.json
+          python -m json.tool /tmp/water-care-public-audit.json
