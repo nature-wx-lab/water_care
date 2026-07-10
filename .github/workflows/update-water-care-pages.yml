@@ -217,10 +217,12 @@ jobs:
             sleep 0.25
           done
           curl -fsS http://127.0.0.1:8787/deployment.json >/dev/null
+          audit_status=0
           PLAYWRIGHT_MODULE=playwright-core BROWSER_EXECUTABLE="$browser" \
             node site/scripts/audit_water_care.mjs http://127.0.0.1:8787/ \
-            > /tmp/water-care-local-audit.json
+            > /tmp/water-care-local-audit.json || audit_status=$?
           python -m json.tool /tmp/water-care-local-audit.json
+          test "$audit_status" -eq 0
 
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
@@ -296,7 +298,9 @@ jobs:
         run: |
           browser="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$browser" || { echo "Chrome executable is unavailable"; exit 1; }
+          audit_status=0
           PLAYWRIGHT_MODULE=playwright-core BROWSER_EXECUTABLE="$browser" \
             node site/scripts/audit_water_care.mjs "${{ needs.deploy.outputs.page_url }}" \
-            > /tmp/water-care-public-audit.json
+            > /tmp/water-care-public-audit.json || audit_status=$?
           python -m json.tool /tmp/water-care-public-audit.json
+          test "$audit_status" -eq 0
