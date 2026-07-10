@@ -16,6 +16,16 @@
 
 陸域判定はNatural Earthの国境データと既存の都道府県割当から作成した固定マスクを使います。元の国境形状は公開物へ含めず、1格子1バイトの分類結果、作成条件、件数およびSHA-256だけを公開しています。
 
+地名表示はNatureWxLabの正本 `data/weather/japan_all_stations/station_inventory_current_temperature.csv` から、現行かつ気温を持つ918観測地点だけを公開用JSONへ派生したものです。都道府県名の固定ラベルは含めません。全国表示では主要地点を優先して最大38件に衝突回避し、拡大に応じて気象官署・その他の観測地点を最大82件、220件まで追加します。派生JSONには元CSVのSHA-256、抽出件数、順位別件数、描画契約を記録しています。
+
+NatureWxLab正本からの再生成コマンドは次のとおりです。
+
+```bash
+python3 public/water_care/scripts/build_place_labels.py \
+  --source data/weather/japan_all_stations/station_inventory_current_temperature.csv \
+  --output public/water_care/data/static/place_labels.json
+```
+
 観測データが2時間超、予報データが12時間超更新されていない場合は、画面に「更新遅延」と表示します。閲覧中は同じデータ版へ固定し、新しいデータを検知した場合は再読み込みを案内します。
 
 マイデータは利用者のブラウザ内だけに保存されます。選択地点は約5km格子IDとして扱い、生の緯度経度や登録内容をサーバーへ送信しません。

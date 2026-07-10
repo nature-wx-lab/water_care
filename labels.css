@@ -1,1 +1,1 @@
-.place-label{width:max-content!important;height:auto!important;margin:0!important;padding:1px 3px;color:#183f37;font-size:10px;font-weight:800;line-height:1.2;text-shadow:-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff,1px 1px 0 #fff;white-space:nowrap;background:transparent;border:0}.place-label.city{color:#315d72;font-size:9px}
+.place-label-canvas{position:absolute;inset:0;z-index:470;pointer-events:none}
