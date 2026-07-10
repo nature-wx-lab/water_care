@@ -64,14 +64,18 @@ def main() -> None:
     restore_keys = """restore-keys: |
             water-care-amedas-v2-${{ runner.os }}-${{ steps.cache-date.outputs.date }}-
             water-care-amedas-v2-${{ runner.os }}-
-            water-care-amedas-v1-${{ runner.os }}-${{ steps.cache-date.outputs.date }}
             water-care-amedas-v1-${{ runner.os }}-"""
     require(
         restore,
         restore_keys,
         errors,
-        "ordered same-day, rolling, and v1 migration restore keys",
+        "ordered same-day, rolling, and v1 migration restore keys without an exact legacy hit",
     )
+    exact_legacy_restore = (
+        "water-care-amedas-v1-${{ runner.os }}-${{ steps.cache-date.outputs.date }}\n"
+    )
+    if exact_legacy_restore in restore:
+        errors.append("exact v1 daily restore must not outrank rolling v2 prefix matches")
 
     require(
         save,
