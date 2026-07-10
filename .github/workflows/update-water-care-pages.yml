@@ -153,6 +153,16 @@ jobs:
             --source-commit "$GITHUB_SHA" \
             --generator-commit "${{ steps.generator.outputs.commit }}"
 
+      - name: Verify public Pages payload independently
+        working-directory: site
+        env:
+          PRIVACY_DENYLIST: ${{ secrets.PRIVACY_DENYLIST }}
+        run: |
+          python scripts/verify_pages_payload.py \
+            --pages-dir ../pages \
+            --source-commit "$GITHUB_SHA" \
+            --generator-commit "${{ steps.generator.outputs.commit }}"
+
       - name: Record dataset identity
         id: metadata
         run: |

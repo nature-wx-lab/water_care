@@ -96,6 +96,11 @@ try {
       modelAssumptionInsideMap: Boolean(assumptionRect && mapPanelRect)
         && assumptionRect.left >= mapPanelRect.left && assumptionRect.right <= mapPanelRect.right
         && assumptionRect.top >= mapPanelRect.top && assumptionRect.bottom <= mapPanelRect.bottom,
+      landGridCount: Number(document.documentElement.dataset.landGridCount),
+      landMaskSha: document.documentElement.dataset.landMaskSha || '',
+      valueCountTotal: Number(document.querySelector('#mapStampText')?.dataset.valueCountTotal),
+      stamp: document.querySelector('#mapStampText')?.textContent || '',
+      landMaskNote: document.querySelector('#landMaskNote')?.textContent || '',
     };
   });
   result.checks.contract = await page.evaluate(async () => {
@@ -106,6 +111,25 @@ try {
     const presetsResponse = await fetch(`./data/${presetPath}?v=${encodeURIComponent(manifest.dataset_id)}`);
     if (!presetsResponse.ok) throw new Error(`presets audit ${presetsResponse.status}`);
     const presets = await presetsResponse.json();
+    const landReference = manifest.land_mask;
+    if (!landReference) throw new Error('land mask reference is missing');
+    const [landManifestResponse, landBinaryResponse] = await Promise.all([
+      fetch(`./data/${landReference.manifest}?v=${encodeURIComponent(manifest.dataset_id)}`),
+      fetch(`./data/${landReference.file}?v=${encodeURIComponent(manifest.dataset_id)}`),
+    ]);
+    if (!landManifestResponse.ok) throw new Error(`land mask manifest audit ${landManifestResponse.status}`);
+    if (!landBinaryResponse.ok) throw new Error(`land mask audit ${landBinaryResponse.status}`);
+    const landManifest = await landManifestResponse.json();
+    const landBuffer = await landBinaryResponse.arrayBuffer();
+    const landClasses = new Uint8Array(landBuffer);
+    const landDigest = [...new Uint8Array(await crypto.subtle.digest('SHA-256', landBuffer))]
+      .map(value => value.toString(16).padStart(2, '0')).join('');
+    const landCounts = { 0: 0, 1: 0, 2: 0, 3: 0 };
+    let unknownLandClass = false;
+    for (const value of landClasses) {
+      if (!(value in landCounts)) unknownLandClass = true;
+      else landCounts[value] += 1;
+    }
     const rootrotCodes = new Set();
     const plantHourly = {};
     for (const [mode, refs] of Object.entries(manifest.hourly?.files || {})) {
@@ -225,6 +249,23 @@ try {
       generatorVersion: manifest.generator_version,
       datasetId: manifest.dataset_id,
       distributionStatsBasis: manifest.distribution_stats_basis,
+      distributionStatsScope: manifest.distribution_stats_scope,
+      landMask: {
+        reference: landReference,
+        schemaVersion: landManifest.schema_version,
+        gridCount: landManifest.grid_count,
+        classesLength: landClasses.length,
+        counts: landCounts,
+        manifestCounts: landManifest.counts,
+        publicLandClasses: landManifest.public_land_classes,
+        sha256: landDigest,
+        manifestSha256: landManifest.sha256,
+        unknownLandClass,
+        class0Example: landClasses.findIndex(value => value === 0),
+        class1Example: landClasses.findIndex(value => value === 1),
+        class2Example: landClasses.findIndex(value => value === 2),
+        class3Example: landClasses.findIndex(value => value === 3),
+      },
       manifestModelVersion: manifest.model_version,
       presetModelVersion: presets.model_version,
       manifestPresetVersion: manifest.preset_version,
@@ -434,6 +475,16 @@ try {
     canvasVisible: !document.querySelector('.amedas-rain-canvas')?.hidden,
   }));
 
+  result.checks.landSelectionDistance = await page.evaluate(gridId => {
+    const latitude = analysis.points[gridId * 2];
+    const longitude = analysis.points[gridId * 2 + 1];
+    return {
+      exactGrid: nearestGrid({ lat: latitude, lng: longitude }),
+      distantOceanGrid: nearestGrid({ lat: 0, lng: 0 }),
+      hitRadiusSquared: LAND_GRID_HIT_RADIUS2,
+    };
+  }, result.checks.contract.landMask.class1Example);
+
   const map = page.locator('#map');
   const box = await map.boundingBox();
   if (!box) throw new Error('map has no bounding box');
@@ -442,11 +493,66 @@ try {
   await page.click('#openDetailModal');
   result.checks.detail = await page.evaluate(() => ({
     grid: document.querySelector('#floatingGrid')?.textContent,
+    selectedGrid: analysis.selectedGrid,
+    landClass: analysis.landClasses?.[analysis.selectedGrid],
     floatingVisible: !document.querySelector('#floatingDetail')?.hidden,
     modalVisible: !document.querySelector('#detailModal')?.hidden,
   }));
   await page.click('#detailModalClose');
   await page.click('#floatingClose');
+
+  await page.selectOption('#analysisLayer', 'moisture');
+  await page.waitForFunction(() => document.querySelector('#mapInfoBar')?.textContent.startsWith('うるおい残量MAP'));
+  await page.evaluate(async gridId => selectGridSafely(gridId, { showPanel: false }), result.checks.contract.landMask.class2Example);
+  result.checks.unassignedLand = await page.evaluate(() => ({
+    selectedGrid: analysis.selectedGrid,
+    landClass: analysis.landClasses?.[analysis.selectedGrid],
+    calendarTitle: document.querySelector('#calendarTitle')?.textContent || '',
+    calendarText: document.querySelector('#calendarDays')?.textContent || '',
+  }));
+  await page.evaluate(async gridId => selectGridSafely(gridId, { showPanel: false }), result.checks.contract.landMask.class0Example);
+  result.checks.legacyOutsideGrid = await page.evaluate(async () => ({
+    selectedGrid: analysis.selectedGrid,
+    landClass: analysis.landClasses?.[analysis.selectedGrid],
+    detailGrid: document.querySelector('#detailGrid')?.textContent || '',
+    floatingGrid: document.querySelector('#floatingGrid')?.textContent || '',
+    detailLabel: document.querySelector('#detailLabel')?.textContent || '',
+    detailReason: document.querySelector('#detailReason')?.textContent || '',
+    itemGrid: document.querySelector('#itemGrid')?.value || '',
+    status: document.querySelector('#mapStatus')?.textContent || '',
+    itemStatus: await itemStatus({ grid_id: analysis.selectedGrid, mode: 'farm' }),
+  }));
+  await page.evaluate(async gridId => selectGridSafely(gridId, { showPanel: false }), result.checks.contract.landMask.class3Example);
+  result.checks.legacyForeignGrid = await page.evaluate(() => ({
+    selectedGrid: analysis.selectedGrid,
+    landClass: analysis.landClasses?.[analysis.selectedGrid],
+    detailGrid: document.querySelector('#detailGrid')?.textContent || '',
+    floatingGrid: document.querySelector('#floatingGrid')?.textContent || '',
+  }));
+  await page.evaluate(async gridId => selectGridSafely(gridId, { showPanel: false }), result.checks.contract.landMask.class1Example);
+  result.checks.legacyRecovery = await page.evaluate(() => ({
+    selectedGrid: analysis.selectedGrid,
+    landClass: analysis.landClasses?.[analysis.selectedGrid],
+    status: document.querySelector('#mapStatus')?.textContent || '',
+  }));
+
+  const legacyUrl = new URL(targetUrl);
+  legacyUrl.searchParams.set('grid', String(result.checks.contract.landMask.class0Example));
+  const legacyPage = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  try {
+    await legacyPage.goto(legacyUrl.toString(), { waitUntil: 'domcontentloaded', timeout: 120000 });
+    await legacyPage.waitForFunction(() => Boolean(document.documentElement.dataset.datasetId)
+      && document.querySelector('#floatingDetail')?.hidden === false, null, { timeout: 120000 });
+    result.checks.legacySharedOutside = await legacyPage.evaluate(() => ({
+      selectedGrid: analysis.selectedGrid,
+      landClass: analysis.landClasses?.[analysis.selectedGrid],
+      floatingVisible: !document.querySelector('#floatingDetail')?.hidden,
+      floatingGrid: document.querySelector('#floatingGrid')?.textContent || '',
+      status: document.querySelector('#mapStatus')?.textContent || '',
+    }));
+  } finally {
+    await legacyPage.close();
+  }
 
   result.checks.versionedData = {
     count: dataRequests.length,
@@ -473,6 +579,21 @@ try {
   const conditionApplicationOk = contract.conditionApplication?.mode === 'client_proxy'
     && contract.conditionApplication?.physical_recompute === false
     && contract.conditionApplication?.preset_path === 'presets.json';
+  const landMaskOk = contract.landMask?.schemaVersion === 1
+    && contract.landMask?.gridCount === 31296
+    && contract.landMask?.classesLength === 31296
+    && sameJson(contract.landMask?.counts, { 0: 18887, 1: 12254, 2: 150, 3: 5 })
+    && sameJson(contract.landMask?.manifestCounts, { 0: 18887, 1: 12254, 2: 150, 3: 5 })
+    && sameJson(contract.landMask?.publicLandClasses, [1, 2])
+    && contract.landMask?.sha256 === '2ccff1d901cf2cf8b90983aa3959f7636a64d55067167f322c2ebffc873f4394'
+    && contract.landMask?.manifestSha256 === contract.landMask?.sha256
+    && contract.landMask?.unknownLandClass === false
+    && contract.landMask?.class0Example >= 0
+    && contract.landMask?.class1Example >= 0
+    && contract.landMask?.class2Example >= 0
+    && contract.landMask?.class3Example >= 0
+    && sameJson(contract.distributionStatsScope?.included_classes, [1, 2])
+    && contract.distributionStatsScope?.grid_count === 12404;
   const controlContractOk = contract.conditionControls?.application === 'client_proxy'
     && contract.conditionControls?.physical_recompute === false
     && sameMembers(Object.keys(contract.conditionControls?.controls || {}), Object.keys(controlOptions))
@@ -559,6 +680,7 @@ try {
   const observedWindowsOk = Object.entries(observedWindowLabels).every(([kind, label]) => result.checks.observedWindows[kind]?.canvasVisible
     && result.checks.observedWindows[kind]?.info.includes(label));
   result.checks.contractGate = {
+    landMaskOk,
     conditionApplicationOk,
     controlContractOk,
     rootrotContractOk,
@@ -592,13 +714,20 @@ try {
     && result.checks.initial.modelAssumption.includes('7日前に60%で開始')
     && result.checks.initial.modelAssumption.includes('実際の水やり未反映')
     && result.checks.initial.modelAssumption.includes('実測校正未了')
+    && result.checks.initial.landGridCount === 12404
+    && result.checks.initial.landMaskSha === '2ccff1d901cf2cf8b90983aa3959f7636a64d55067167f322c2ebffc873f4394'
+    && result.checks.initial.valueCountTotal === 12404
+    && result.checks.initial.stamp.includes('日本陸域12,404格子')
+    && result.checks.initial.landMaskNote.includes('31,296格子')
+    && result.checks.initial.landMaskNote.includes('日本陸域12,404格子')
     && (requireStale ? result.checks.initial.stale === 'true' : (allowStale || result.checks.initial.stale === 'false'))
     && result.checks.initialCanvas.width > 0
     && result.checks.initialCanvas.height > 0
     && result.checks.initialCanvas.colored > 10
     && contract.schemaVersion >= 4
-    && contract.generatorVersion >= 3
+    && contract.generatorVersion >= 4
     && contract.distributionStatsBasis === 'pre_quantized_float'
+    && landMaskOk
     && contract.datasetId === result.checks.initial.datasetId
     && Boolean(contract.manifestModelVersion)
     && contract.manifestModelVersion === contract.presetModelVersion
@@ -631,8 +760,34 @@ try {
     && observedWindowsOk
     && result.checks.rainDifference.info.includes('24時間降水 前日差')
     && result.checks.rainDifference.canvasVisible
+    && result.checks.landSelectionDistance.exactGrid === contract.landMask.class1Example
+    && result.checks.landSelectionDistance.distantOceanGrid === -1
+    && result.checks.landSelectionDistance.hitRadiusSquared === 0.004
     && result.checks.detail.floatingVisible
     && result.checks.detail.modalVisible
+    && [1, 2].includes(result.checks.detail.landClass)
+    && result.checks.unassignedLand.landClass === 2
+    && result.checks.unassignedLand.calendarTitle.includes('日本陸域・都道府県未割当')
+    && result.checks.unassignedLand.calendarText.includes('週間傾向なし')
+    && result.checks.unassignedLand.calendarText.includes('都道府県未割当')
+    && result.checks.legacyOutsideGrid.landClass === 0
+    && result.checks.legacyOutsideGrid.detailGrid.includes('陸域マスク外（旧登録）')
+    && result.checks.legacyOutsideGrid.floatingGrid === result.checks.legacyOutsideGrid.detailGrid
+    && result.checks.legacyOutsideGrid.detailLabel === '対象外'
+    && result.checks.legacyOutsideGrid.detailReason.includes('地図上の陸域を選び直してください')
+    && result.checks.legacyOutsideGrid.itemGrid.includes('陸域マスク外・再選択')
+    && result.checks.legacyOutsideGrid.status.includes('地図上の陸域を選び直してください')
+    && result.checks.legacyOutsideGrid.itemStatus === '陸域マスク外（旧登録）'
+    && result.checks.legacyForeignGrid.landClass === 3
+    && result.checks.legacyForeignGrid.detailGrid.includes('日本国外陸域・対象外')
+    && result.checks.legacyForeignGrid.floatingGrid === result.checks.legacyForeignGrid.detailGrid
+    && result.checks.legacyRecovery.landClass === 1
+    && result.checks.legacyRecovery.status.includes(`格子 ${contract.landMask.class1Example}`)
+    && !result.checks.legacyRecovery.status.includes('マスク外')
+    && result.checks.legacySharedOutside.landClass === 0
+    && result.checks.legacySharedOutside.floatingVisible
+    && result.checks.legacySharedOutside.floatingGrid.includes('陸域マスク外（旧登録）')
+    && result.checks.legacySharedOutside.status.includes('共有リンクの地点')
     && result.checks.versionedData.allVersioned;
 } catch (error) {
   result.failure = String(error?.stack || error);
