@@ -12,6 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ALLOWED_IDENTITIES = {
     ("nature-wx-lab", "nature-wx-lab@users.noreply.github.com"),
+    ("nature-wx-lab", "289840956+nature-wx-lab@users.noreply.github.com"),
     ("github-actions[bot]", "41898282+github-actions[bot]@users.noreply.github.com"),
 }
 ALLOWED_EMAILS = {email for _, email in ALLOWED_IDENTITIES}
