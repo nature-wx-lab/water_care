@@ -7,6 +7,7 @@ import argparse
 import csv
 import hashlib
 import json
+import math
 from collections import Counter
 from pathlib import Path
 
@@ -20,6 +21,13 @@ MAJOR_PLACE_NAMES = {
     "名瀬", "石垣島", "父島",
 }
 MIN_ZOOM_BY_RANK = {0: 0.9, 1: 1.9, 2: 3.8}
+REGIONAL_LABELS = (
+    ("regional:china", "中国", 116.4, 39.9),
+    ("regional:south-korea", "韓国", 127.8, 36.5),
+    ("regional:north-korea", "北朝鮮", 127.1, 40.2),
+    ("regional:russia", "ロシア", 142.1, 46.2),
+    ("regional:taiwan", "台湾", 121.0, 23.8),
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -41,7 +49,9 @@ def build(source: Path) -> dict[str, object]:
         try:
             latitude = float(row.get("latitude", ""))
             longitude = float(row.get("longitude", ""))
-        except ValueError:
+        except (TypeError, ValueError):
+            continue
+        if not math.isfinite(latitude) or not math.isfinite(longitude):
             continue
         name = row.get("jma_name") or row.get("name")
         if not name:
@@ -59,6 +69,19 @@ def build(source: Path) -> dict[str, object]:
             }
         )
 
+    station_label_count = len(labels)
+    labels.extend(
+        {
+            "station_key": key,
+            "name": name,
+            "longitude": longitude,
+            "latitude": latitude,
+            "station_kind": "regional",
+            "rank": 0,
+            "min_zoom": MIN_ZOOM_BY_RANK[0],
+        }
+        for key, name, longitude, latitude in REGIONAL_LABELS
+    )
     rank_counts = Counter(label["rank"] for label in labels)
     return {
         "schema_version": 1,
@@ -70,7 +93,8 @@ def build(source: Path) -> dict[str, object]:
             "selection": "is_current=True and has_temperature=True with finite latitude/longitude and a station name",
         },
         "render_contract": {
-            "ranking": "major place name=0, station_kind s=1, other current temperature station=2",
+            "ranking": "regional and major place name=0, station_kind s=1, other current temperature station=2",
+            "regional_labels": [name for _, name, _, _ in REGIONAL_LABELS],
             "sort": "rank ascending, then Japanese station name",
             "initial_leaflet_zoom": 5,
             "zoom_ratio": "2 ** (leaflet_zoom - initial_leaflet_zoom)",
@@ -83,6 +107,8 @@ def build(source: Path) -> dict[str, object]:
             "collision": "axis-aligned text rectangles; first ranked label wins",
         },
         "label_count": len(labels),
+        "station_label_count": station_label_count,
+        "regional_label_count": len(REGIONAL_LABELS),
         "rank_counts": {str(rank): rank_counts[rank] for rank in MIN_ZOOM_BY_RANK},
         "labels": labels,
     }

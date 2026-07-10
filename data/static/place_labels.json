@@ -8,7 +8,14 @@
     "selection": "is_current=True and has_temperature=True with finite latitude/longitude and a station name"
   },
   "render_contract": {
-    "ranking": "major place name=0, station_kind s=1, other current temperature station=2",
+    "ranking": "regional and major place name=0, station_kind s=1, other current temperature station=2",
+    "regional_labels": [
+      "中国",
+      "韓国",
+      "北朝鮮",
+      "ロシア",
+      "台湾"
+    ],
     "sort": "rank ascending, then Japanese station name",
     "initial_leaflet_zoom": 5,
     "zoom_ratio": "2 ** (leaflet_zoom - initial_leaflet_zoom)",
@@ -33,9 +40,11 @@
     ],
     "collision": "axis-aligned text rectangles; first ranked label wins"
   },
-  "label_count": 918,
+  "label_count": 923,
+  "station_label_count": 918,
+  "regional_label_count": 5,
   "rank_counts": {
-    "0": 57,
+    "0": 62,
     "1": 103,
     "2": 758
   },
@@ -8301,6 +8310,51 @@
       "station_kind": "s",
       "rank": 1,
       "min_zoom": 1.9
+    },
+    {
+      "station_key": "regional:china",
+      "name": "中国",
+      "longitude": 116.4,
+      "latitude": 39.9,
+      "station_kind": "regional",
+      "rank": 0,
+      "min_zoom": 0.9
+    },
+    {
+      "station_key": "regional:south-korea",
+      "name": "韓国",
+      "longitude": 127.8,
+      "latitude": 36.5,
+      "station_kind": "regional",
+      "rank": 0,
+      "min_zoom": 0.9
+    },
+    {
+      "station_key": "regional:north-korea",
+      "name": "北朝鮮",
+      "longitude": 127.1,
+      "latitude": 40.2,
+      "station_kind": "regional",
+      "rank": 0,
+      "min_zoom": 0.9
+    },
+    {
+      "station_key": "regional:russia",
+      "name": "ロシア",
+      "longitude": 142.1,
+      "latitude": 46.2,
+      "station_kind": "regional",
+      "rank": 0,
+      "min_zoom": 0.9
+    },
+    {
+      "station_key": "regional:taiwan",
+      "name": "台湾",
+      "longitude": 121.0,
+      "latitude": 23.8,
+      "station_kind": "regional",
+      "rank": 0,
+      "min_zoom": 0.9
     }
   ]
 }
