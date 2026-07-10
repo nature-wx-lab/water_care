@@ -5,4 +5,10 @@ fixtures/
 screenshots/
 logs/
 __pycache__/
+.venv/
+node_modules/
+.pytest_cache/
+.cache/
+tmp/
+*.tmp
 *.log

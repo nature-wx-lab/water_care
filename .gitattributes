@@ -1,0 +1,4 @@
+*.bin binary
+*.gz binary
+*.png binary
+*.woff2 binary

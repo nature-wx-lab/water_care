@@ -1,190 +1,278 @@
 {
-  "schema_version": 2,
-  "model_version": "engine-1.1.0-v2.1-review04",
-  "preset_version": "2026-07-03.3",
-  "generated_at_utc": "2026-07-03T20:59:45.861532+00:00",
-  "generated_at_jst": "2026-07-04T05:59:45.861532+09:00",
+  "schema_version": 4,
+  "generator_version": 2,
+  "state_schema_version": 2,
+  "dataset_id": "20260710T004557332583Z-17494",
+  "model_version": "engine-1.1.1-v2.1-rootrot4",
+  "preset_version": "2026-07-10.1",
+  "generated_at_utc": "2026-07-10T00:46:25.478938+00:00",
+  "generated_at_jst": "2026-07-10T09:46:25.478938+09:00",
   "source_basetimes": {
-    "amedas": "20260704050000",
-    "wdist": "2026-07-04T05:56:40+09:00",
-    "weekly": "2026-07-04T05:57:18.651568+09:00"
+    "amedas": "20260710090000",
+    "wdist": "20260709200000",
+    "wdist_elements": {
+      "temp_point": "20260709200000",
+      "r3": "20260709200000",
+      "wm": "20260709200000"
+    },
+    "weekly": "2026-07-09T17:00:00+09:00"
   },
+  "input_hours": 168,
   "input_station_counts": {
     "temp": {
-      "min": 908,
+      "min": 906,
       "max": 916
     },
     "humidity": {
-      "min": 835,
+      "min": 833,
       "max": 843
     },
     "wind_speed": {
-      "min": 911,
+      "min": 908,
       "max": 915
     },
     "sun1h": {
-      "min": 840,
-      "max": 842
+      "min": 835,
+      "max": 843
     },
     "precipitation1h": {
-      "min": 1274,
+      "min": 1268,
       "max": 1285
     }
   },
-  "state_updated_at_jst": "2026-07-04T05:00:00+09:00",
+  "weekly_region_count": 47,
+  "state_updated_at_jst": "2026-07-10T09:00:00+09:00",
+  "representative_checks": {
+    "稚内": {
+      "grid_id": 244,
+      "pot_outdoor": 20.0,
+      "rain_7d_mm": 8.0
+    },
+    "仙台": {
+      "grid_id": 9583,
+      "pot_outdoor": 0.0,
+      "rain_7d_mm": 1.4
+    },
+    "東京": {
+      "grid_id": 14762,
+      "pot_outdoor": 0.0,
+      "rain_7d_mm": 3.9
+    },
+    "大阪": {
+      "grid_id": 17821,
+      "pot_outdoor": 0.0,
+      "rain_7d_mm": 70.0
+    },
+    "那覇": {
+      "grid_id": 29552,
+      "pot_outdoor": 0.0,
+      "rain_7d_mm": 0.0
+    }
+  },
   "grid_count": 31296,
-  "forecast_hours": 43,
-  "history_hours": 72,
-  "current_index": 71,
-  "forecast_start_index": 72,
+  "forecast_hours": 39,
+  "history_hours": 73,
+  "current_index": 72,
+  "forecast_start_index": 73,
   "distribution_stats": {
     "pot_outdoor": {
-      "zero_pct": 53.067,
-      "hundred_pct": 0.457
+      "zero_pct": 77.502,
+      "hundred_pct": 3.643
     },
     "ground": {
-      "zero_pct": 0.0,
-      "hundred_pct": 9.947
+      "zero_pct": 0.006,
+      "hundred_pct": 1.396
     },
     "farm": {
-      "zero_pct": 19.814,
-      "hundred_pct": 7.48
+      "zero_pct": 34.375,
+      "hundred_pct": 4.432
     }
+  },
+  "rootrot_distribution_stats": {
+    "pot_outdoor": {
+      "0": 98.271,
+      "1": 1.729,
+      "2": 0.0,
+      "3": 0.0
+    },
+    "ground": {
+      "0": 69.574,
+      "1": 2.815,
+      "2": 21.009,
+      "3": 6.601
+    },
+    "farm": {
+      "0": 69.718,
+      "1": 21.734,
+      "2": 7.343,
+      "3": 1.205
+    }
+  },
+  "rootrot_contract": {
+    "labels": [
+      "心配なし",
+      "湿り気味",
+      "湿りが続いている",
+      "根腐れ注意"
+    ],
+    "wet_stress_ratio_thresholds": [
+      0.3,
+      0.6,
+      1.0
+    ],
+    "public_values": "stage_only",
+    "encoding_version": 1,
+    "dtype": "uint8",
+    "source": "wet_stress_ratio",
+    "mode_wet_thresholds": {
+      "pot_outdoor": 55.0,
+      "ground": 55.0,
+      "farm": 55.0
+    },
+    "condition_basis": "standard_preset"
+  },
+  "condition_application": {
+    "mode": "client_proxy",
+    "physical_recompute": false,
+    "rootrot_condition_recompute": false,
+    "disclosure": "条件変更は公開済み標準計算へ残量オフセットを加える簡易補正です。物理モデルの再計算ではありません。",
+    "preset_version": "2026-07-10.1",
+    "preset_path": "presets.json"
   },
   "hourly": {
     "times": [
-      "2026-07-01T06:00:00+09:00",
-      "2026-07-01T07:00:00+09:00",
-      "2026-07-01T08:00:00+09:00",
-      "2026-07-01T09:00:00+09:00",
-      "2026-07-01T10:00:00+09:00",
-      "2026-07-01T11:00:00+09:00",
-      "2026-07-01T12:00:00+09:00",
-      "2026-07-01T13:00:00+09:00",
-      "2026-07-01T14:00:00+09:00",
-      "2026-07-01T15:00:00+09:00",
-      "2026-07-01T16:00:00+09:00",
-      "2026-07-01T17:00:00+09:00",
-      "2026-07-01T18:00:00+09:00",
-      "2026-07-01T19:00:00+09:00",
-      "2026-07-01T20:00:00+09:00",
-      "2026-07-01T21:00:00+09:00",
-      "2026-07-01T22:00:00+09:00",
-      "2026-07-01T23:00:00+09:00",
-      "2026-07-02T00:00:00+09:00",
-      "2026-07-02T01:00:00+09:00",
-      "2026-07-02T02:00:00+09:00",
-      "2026-07-02T03:00:00+09:00",
-      "2026-07-02T04:00:00+09:00",
-      "2026-07-02T05:00:00+09:00",
-      "2026-07-02T06:00:00+09:00",
-      "2026-07-02T07:00:00+09:00",
-      "2026-07-02T08:00:00+09:00",
-      "2026-07-02T09:00:00+09:00",
-      "2026-07-02T10:00:00+09:00",
-      "2026-07-02T11:00:00+09:00",
-      "2026-07-02T12:00:00+09:00",
-      "2026-07-02T13:00:00+09:00",
-      "2026-07-02T14:00:00+09:00",
-      "2026-07-02T15:00:00+09:00",
-      "2026-07-02T16:00:00+09:00",
-      "2026-07-02T17:00:00+09:00",
-      "2026-07-02T18:00:00+09:00",
-      "2026-07-02T19:00:00+09:00",
-      "2026-07-02T20:00:00+09:00",
-      "2026-07-02T21:00:00+09:00",
-      "2026-07-02T22:00:00+09:00",
-      "2026-07-02T23:00:00+09:00",
-      "2026-07-03T00:00:00+09:00",
-      "2026-07-03T01:00:00+09:00",
-      "2026-07-03T02:00:00+09:00",
-      "2026-07-03T03:00:00+09:00",
-      "2026-07-03T04:00:00+09:00",
-      "2026-07-03T05:00:00+09:00",
-      "2026-07-03T06:00:00+09:00",
-      "2026-07-03T07:00:00+09:00",
-      "2026-07-03T08:00:00+09:00",
-      "2026-07-03T09:00:00+09:00",
-      "2026-07-03T10:00:00+09:00",
-      "2026-07-03T11:00:00+09:00",
-      "2026-07-03T12:00:00+09:00",
-      "2026-07-03T13:00:00+09:00",
-      "2026-07-03T14:00:00+09:00",
-      "2026-07-03T15:00:00+09:00",
-      "2026-07-03T16:00:00+09:00",
-      "2026-07-03T17:00:00+09:00",
-      "2026-07-03T18:00:00+09:00",
-      "2026-07-03T19:00:00+09:00",
-      "2026-07-03T20:00:00+09:00",
-      "2026-07-03T21:00:00+09:00",
-      "2026-07-03T22:00:00+09:00",
-      "2026-07-03T23:00:00+09:00",
-      "2026-07-04T00:00:00+09:00",
-      "2026-07-04T01:00:00+09:00",
-      "2026-07-04T02:00:00+09:00",
-      "2026-07-04T03:00:00+09:00",
-      "2026-07-04T04:00:00+09:00",
-      "2026-07-04T05:00:00+09:00",
-      "2026-07-04T06:00:00+09:00",
-      "2026-07-04T07:00:00+09:00",
-      "2026-07-04T08:00:00+09:00",
-      "2026-07-04T09:00:00+09:00",
-      "2026-07-04T10:00:00+09:00",
-      "2026-07-04T11:00:00+09:00",
-      "2026-07-04T12:00:00+09:00",
-      "2026-07-04T13:00:00+09:00",
-      "2026-07-04T14:00:00+09:00",
-      "2026-07-04T15:00:00+09:00",
-      "2026-07-04T16:00:00+09:00",
-      "2026-07-04T17:00:00+09:00",
-      "2026-07-04T18:00:00+09:00",
-      "2026-07-04T19:00:00+09:00",
-      "2026-07-04T20:00:00+09:00",
-      "2026-07-04T21:00:00+09:00",
-      "2026-07-04T22:00:00+09:00",
-      "2026-07-04T23:00:00+09:00",
-      "2026-07-05T00:00:00+09:00",
-      "2026-07-05T01:00:00+09:00",
-      "2026-07-05T02:00:00+09:00",
-      "2026-07-05T03:00:00+09:00",
-      "2026-07-05T04:00:00+09:00",
-      "2026-07-05T05:00:00+09:00",
-      "2026-07-05T06:00:00+09:00",
-      "2026-07-05T07:00:00+09:00",
-      "2026-07-05T08:00:00+09:00",
-      "2026-07-05T09:00:00+09:00",
-      "2026-07-05T10:00:00+09:00",
-      "2026-07-05T11:00:00+09:00",
-      "2026-07-05T12:00:00+09:00",
-      "2026-07-05T13:00:00+09:00",
-      "2026-07-05T14:00:00+09:00",
-      "2026-07-05T15:00:00+09:00",
-      "2026-07-05T16:00:00+09:00",
-      "2026-07-05T17:00:00+09:00",
-      "2026-07-05T18:00:00+09:00",
-      "2026-07-05T19:00:00+09:00",
-      "2026-07-05T20:00:00+09:00",
-      "2026-07-05T21:00:00+09:00",
-      "2026-07-05T22:00:00+09:00",
-      "2026-07-05T23:00:00+09:00",
-      "2026-07-06T00:00:00+09:00"
+      "2026-07-07T09:00:00+09:00",
+      "2026-07-07T10:00:00+09:00",
+      "2026-07-07T11:00:00+09:00",
+      "2026-07-07T12:00:00+09:00",
+      "2026-07-07T13:00:00+09:00",
+      "2026-07-07T14:00:00+09:00",
+      "2026-07-07T15:00:00+09:00",
+      "2026-07-07T16:00:00+09:00",
+      "2026-07-07T17:00:00+09:00",
+      "2026-07-07T18:00:00+09:00",
+      "2026-07-07T19:00:00+09:00",
+      "2026-07-07T20:00:00+09:00",
+      "2026-07-07T21:00:00+09:00",
+      "2026-07-07T22:00:00+09:00",
+      "2026-07-07T23:00:00+09:00",
+      "2026-07-08T00:00:00+09:00",
+      "2026-07-08T01:00:00+09:00",
+      "2026-07-08T02:00:00+09:00",
+      "2026-07-08T03:00:00+09:00",
+      "2026-07-08T04:00:00+09:00",
+      "2026-07-08T05:00:00+09:00",
+      "2026-07-08T06:00:00+09:00",
+      "2026-07-08T07:00:00+09:00",
+      "2026-07-08T08:00:00+09:00",
+      "2026-07-08T09:00:00+09:00",
+      "2026-07-08T10:00:00+09:00",
+      "2026-07-08T11:00:00+09:00",
+      "2026-07-08T12:00:00+09:00",
+      "2026-07-08T13:00:00+09:00",
+      "2026-07-08T14:00:00+09:00",
+      "2026-07-08T15:00:00+09:00",
+      "2026-07-08T16:00:00+09:00",
+      "2026-07-08T17:00:00+09:00",
+      "2026-07-08T18:00:00+09:00",
+      "2026-07-08T19:00:00+09:00",
+      "2026-07-08T20:00:00+09:00",
+      "2026-07-08T21:00:00+09:00",
+      "2026-07-08T22:00:00+09:00",
+      "2026-07-08T23:00:00+09:00",
+      "2026-07-09T00:00:00+09:00",
+      "2026-07-09T01:00:00+09:00",
+      "2026-07-09T02:00:00+09:00",
+      "2026-07-09T03:00:00+09:00",
+      "2026-07-09T04:00:00+09:00",
+      "2026-07-09T05:00:00+09:00",
+      "2026-07-09T06:00:00+09:00",
+      "2026-07-09T07:00:00+09:00",
+      "2026-07-09T08:00:00+09:00",
+      "2026-07-09T09:00:00+09:00",
+      "2026-07-09T10:00:00+09:00",
+      "2026-07-09T11:00:00+09:00",
+      "2026-07-09T12:00:00+09:00",
+      "2026-07-09T13:00:00+09:00",
+      "2026-07-09T14:00:00+09:00",
+      "2026-07-09T15:00:00+09:00",
+      "2026-07-09T16:00:00+09:00",
+      "2026-07-09T17:00:00+09:00",
+      "2026-07-09T18:00:00+09:00",
+      "2026-07-09T19:00:00+09:00",
+      "2026-07-09T20:00:00+09:00",
+      "2026-07-09T21:00:00+09:00",
+      "2026-07-09T22:00:00+09:00",
+      "2026-07-09T23:00:00+09:00",
+      "2026-07-10T00:00:00+09:00",
+      "2026-07-10T01:00:00+09:00",
+      "2026-07-10T02:00:00+09:00",
+      "2026-07-10T03:00:00+09:00",
+      "2026-07-10T04:00:00+09:00",
+      "2026-07-10T05:00:00+09:00",
+      "2026-07-10T06:00:00+09:00",
+      "2026-07-10T07:00:00+09:00",
+      "2026-07-10T08:00:00+09:00",
+      "2026-07-10T09:00:00+09:00",
+      "2026-07-10T10:00:00+09:00",
+      "2026-07-10T11:00:00+09:00",
+      "2026-07-10T12:00:00+09:00",
+      "2026-07-10T13:00:00+09:00",
+      "2026-07-10T14:00:00+09:00",
+      "2026-07-10T15:00:00+09:00",
+      "2026-07-10T16:00:00+09:00",
+      "2026-07-10T17:00:00+09:00",
+      "2026-07-10T18:00:00+09:00",
+      "2026-07-10T19:00:00+09:00",
+      "2026-07-10T20:00:00+09:00",
+      "2026-07-10T21:00:00+09:00",
+      "2026-07-10T22:00:00+09:00",
+      "2026-07-10T23:00:00+09:00",
+      "2026-07-11T00:00:00+09:00",
+      "2026-07-11T01:00:00+09:00",
+      "2026-07-11T02:00:00+09:00",
+      "2026-07-11T03:00:00+09:00",
+      "2026-07-11T04:00:00+09:00",
+      "2026-07-11T05:00:00+09:00",
+      "2026-07-11T06:00:00+09:00",
+      "2026-07-11T07:00:00+09:00",
+      "2026-07-11T08:00:00+09:00",
+      "2026-07-11T09:00:00+09:00",
+      "2026-07-11T10:00:00+09:00",
+      "2026-07-11T11:00:00+09:00",
+      "2026-07-11T12:00:00+09:00",
+      "2026-07-11T13:00:00+09:00",
+      "2026-07-11T14:00:00+09:00",
+      "2026-07-11T15:00:00+09:00",
+      "2026-07-11T16:00:00+09:00",
+      "2026-07-11T17:00:00+09:00",
+      "2026-07-11T18:00:00+09:00",
+      "2026-07-11T19:00:00+09:00",
+      "2026-07-11T20:00:00+09:00",
+      "2026-07-11T21:00:00+09:00",
+      "2026-07-11T22:00:00+09:00",
+      "2026-07-11T23:00:00+09:00",
+      "2026-07-12T00:00:00+09:00"
     ],
     "shape": [
-      115,
+      112,
       31296
     ],
     "files": {
       "pot_outdoor": {
         "moisture": "hourly/pot_outdoor_moisture.bin",
-        "labels": "hourly/pot_outdoor_labels.bin"
+        "labels": "hourly/pot_outdoor_labels.bin",
+        "rootrot_labels": "hourly/pot_outdoor_rootrot_labels.bin"
       },
       "ground": {
         "moisture": "hourly/ground_moisture.bin",
-        "labels": "hourly/ground_labels.bin"
+        "labels": "hourly/ground_labels.bin",
+        "rootrot_labels": "hourly/ground_rootrot_labels.bin"
       },
       "farm": {
         "moisture": "hourly/farm_moisture.bin",
-        "labels": "hourly/farm_labels.bin"
+        "labels": "hourly/farm_labels.bin",
+        "rootrot_labels": "hourly/farm_rootrot_labels.bin"
       }
     },
     "rain": "hourly/rain.bin",
@@ -193,7 +281,7 @@
       "level_cm": "hourly/medaka_level_cm.bin",
       "risk": "hourly/medaka_risk.bin",
       "shape": [
-        115,
+        112,
         31296
       ]
     }
@@ -202,24 +290,28 @@
     {
       "id": "current",
       "label": "現在",
-      "validtime_jst": "2026-07-04T05:00:00+09:00",
+      "time_semantics": "point",
+      "validtime_jst": "2026-07-10T09:00:00+09:00",
       "status": "available",
       "layers": {
         "pot_outdoor": {
           "file": "overview/pot_outdoor_current.bin",
           "label_file": "overview/pot_outdoor_current_labels.bin",
+          "rootrot_label_file": "overview/pot_outdoor_current_rootrot_labels.bin",
           "min": 0.0,
           "max": 100.0
         },
         "ground": {
           "file": "overview/ground_current.bin",
           "label_file": "overview/ground_current_labels.bin",
-          "min": 8.918737411499023,
+          "rootrot_label_file": "overview/ground_current_rootrot_labels.bin",
+          "min": 0.0,
           "max": 100.0
         },
         "farm": {
           "file": "overview/farm_current.bin",
           "label_file": "overview/farm_current_labels.bin",
+          "rootrot_label_file": "overview/farm_current_rootrot_labels.bin",
           "min": 0.0,
           "max": 100.0
         }
@@ -228,76 +320,88 @@
     {
       "id": "plus3",
       "label": "+3h",
-      "validtime_jst": "2026-07-04T08:00:00+09:00",
+      "time_semantics": "point",
+      "validtime_jst": "2026-07-10T12:00:00+09:00",
       "status": "available",
       "layers": {
         "pot_outdoor": {
           "file": "overview/pot_outdoor_plus3.bin",
           "label_file": "overview/pot_outdoor_plus3_labels.bin",
+          "rootrot_label_file": "overview/pot_outdoor_plus3_rootrot_labels.bin",
           "min": 0.0,
-          "max": 95.8721923828125
+          "max": 100.0
         },
         "ground": {
           "file": "overview/ground_plus3.bin",
           "label_file": "overview/ground_plus3_labels.bin",
-          "min": 8.378034591674805,
-          "max": 99.75831604003906
+          "rootrot_label_file": "overview/ground_plus3_rootrot_labels.bin",
+          "min": 0.0,
+          "max": 99.849609375
         },
         "farm": {
           "file": "overview/farm_plus3.bin",
           "label_file": "overview/farm_plus3_labels.bin",
+          "rootrot_label_file": "overview/farm_plus3_rootrot_labels.bin",
           "min": 0.0,
-          "max": 99.13684844970703
+          "max": 100.0
         }
       }
     },
     {
       "id": "plus6",
       "label": "+6h",
-      "validtime_jst": "2026-07-04T11:00:00+09:00",
+      "time_semantics": "point",
+      "validtime_jst": "2026-07-10T15:00:00+09:00",
       "status": "available",
       "layers": {
         "pot_outdoor": {
           "file": "overview/pot_outdoor_plus6.bin",
           "label_file": "overview/pot_outdoor_plus6_labels.bin",
+          "rootrot_label_file": "overview/pot_outdoor_plus6_rootrot_labels.bin",
           "min": 0.0,
-          "max": 98.32670593261719
+          "max": 98.36005401611328
         },
         "ground": {
           "file": "overview/ground_plus6.bin",
           "label_file": "overview/ground_plus6_labels.bin",
-          "min": 7.166105270385742,
-          "max": 100.0
+          "rootrot_label_file": "overview/ground_plus6_rootrot_labels.bin",
+          "min": 0.0,
+          "max": 99.76495361328125
         },
         "farm": {
           "file": "overview/farm_plus6.bin",
           "label_file": "overview/farm_plus6_labels.bin",
+          "rootrot_label_file": "overview/farm_plus6_rootrot_labels.bin",
           "min": 0.0,
-          "max": 100.0
+          "max": 99.58637237548828
         }
       }
     },
     {
       "id": "tonight",
       "label": "今夜",
-      "validtime_jst": "2026-07-04T21:00:00+09:00",
+      "time_semantics": "point",
+      "validtime_jst": "2026-07-10T21:00:00+09:00",
       "status": "available",
       "layers": {
         "pot_outdoor": {
           "file": "overview/pot_outdoor_tonight.bin",
           "label_file": "overview/pot_outdoor_tonight_labels.bin",
+          "rootrot_label_file": "overview/pot_outdoor_tonight_rootrot_labels.bin",
           "min": 0.0,
           "max": 100.0
         },
         "ground": {
           "file": "overview/ground_tonight.bin",
           "label_file": "overview/ground_tonight_labels.bin",
-          "min": 4.763712406158447,
-          "max": 100.0
+          "rootrot_label_file": "overview/ground_tonight_rootrot_labels.bin",
+          "min": 0.0,
+          "max": 99.24695587158203
         },
         "farm": {
           "file": "overview/farm_tonight.bin",
           "label_file": "overview/farm_tonight_labels.bin",
+          "rootrot_label_file": "overview/farm_tonight_rootrot_labels.bin",
           "min": 0.0,
           "max": 100.0
         }
@@ -306,24 +410,28 @@
     {
       "id": "tomorrow_morning",
       "label": "明朝",
-      "validtime_jst": "2026-07-05T06:00:00+09:00",
+      "time_semantics": "point",
+      "validtime_jst": "2026-07-11T06:00:00+09:00",
       "status": "available",
       "layers": {
         "pot_outdoor": {
           "file": "overview/pot_outdoor_tomorrow_morning.bin",
           "label_file": "overview/pot_outdoor_tomorrow_morning_labels.bin",
+          "rootrot_label_file": "overview/pot_outdoor_tomorrow_morning_rootrot_labels.bin",
           "min": 0.0,
           "max": 100.0
         },
         "ground": {
           "file": "overview/ground_tomorrow_morning.bin",
           "label_file": "overview/ground_tomorrow_morning_labels.bin",
-          "min": 4.449179649353027,
+          "rootrot_label_file": "overview/ground_tomorrow_morning_rootrot_labels.bin",
+          "min": 0.0,
           "max": 100.0
         },
         "farm": {
           "file": "overview/farm_tomorrow_morning.bin",
           "label_file": "overview/farm_tomorrow_morning_labels.bin",
+          "rootrot_label_file": "overview/farm_tomorrow_morning_rootrot_labels.bin",
           "min": 0.0,
           "max": 100.0
         }
@@ -332,80 +440,102 @@
     {
       "id": "tomorrow_evening",
       "label": "明夕",
-      "validtime_jst": "2026-07-05T18:00:00+09:00",
+      "time_semantics": "point",
+      "validtime_jst": "2026-07-11T18:00:00+09:00",
       "status": "available",
       "layers": {
         "pot_outdoor": {
           "file": "overview/pot_outdoor_tomorrow_evening.bin",
           "label_file": "overview/pot_outdoor_tomorrow_evening_labels.bin",
+          "rootrot_label_file": "overview/pot_outdoor_tomorrow_evening_rootrot_labels.bin",
           "min": 0.0,
-          "max": 98.77483367919922
+          "max": 100.0
         },
         "ground": {
           "file": "overview/ground_tomorrow_evening.bin",
           "label_file": "overview/ground_tomorrow_evening_labels.bin",
-          "min": 0.501120924949646,
-          "max": 99.9241943359375
+          "rootrot_label_file": "overview/ground_tomorrow_evening_rootrot_labels.bin",
+          "min": 0.0,
+          "max": 100.0
         },
         "farm": {
           "file": "overview/farm_tomorrow_evening.bin",
           "label_file": "overview/farm_tomorrow_evening_labels.bin",
+          "rootrot_label_file": "overview/farm_tomorrow_evening_rootrot_labels.bin",
           "min": 0.0,
-          "max": 99.72925567626953
+          "max": 100.0
         }
       }
     },
     {
       "id": "min48",
       "label": "48h内最小",
-      "validtime_jst": "2026-07-06T00:00:00+09:00",
+      "time_semantics": "window",
+      "window_start_jst": "2026-07-10T09:00:00+09:00",
+      "window_end_jst": "2026-07-12T00:00:00+09:00",
+      "validtime_jst": "2026-07-12T00:00:00+09:00",
       "status": "partial",
-      "available_hours": 44,
+      "available_hours": 40,
       "layers": {
         "pot_outdoor": {
           "file": "overview/pot_outdoor_min48.bin",
           "label_file": "overview/pot_outdoor_min48_labels.bin",
+          "rootrot_label_file": "overview/pot_outdoor_min48_rootrot_labels.bin",
+          "rootrot_aggregation": "max_stage",
           "min": 0.0,
-          "max": 55.135467529296875
+          "max": 79.93204498291016
         },
         "ground": {
           "file": "overview/ground_min48.bin",
           "label_file": "overview/ground_min48_labels.bin",
-          "min": 0.3344542384147644,
-          "max": 97.77713012695312
+          "rootrot_label_file": "overview/ground_min48_rootrot_labels.bin",
+          "rootrot_aggregation": "max_stage",
+          "min": 0.0,
+          "max": 98.04613494873047
         },
         "farm": {
           "file": "overview/farm_min48.bin",
           "label_file": "overview/farm_min48_labels.bin",
+          "rootrot_label_file": "overview/farm_min48_rootrot_labels.bin",
+          "rootrot_aggregation": "max_stage",
           "min": 0.0,
-          "max": 92.87866973876953
+          "max": 94.72261810302734
         }
       }
     },
     {
       "id": "min72",
       "label": "72h内最小",
-      "validtime_jst": "2026-07-06T00:00:00+09:00",
+      "time_semantics": "window",
+      "window_start_jst": "2026-07-10T09:00:00+09:00",
+      "window_end_jst": "2026-07-12T00:00:00+09:00",
+      "validtime_jst": "2026-07-12T00:00:00+09:00",
       "status": "partial",
-      "available_hours": 44,
+      "available_hours": 40,
       "layers": {
         "pot_outdoor": {
           "file": "overview/pot_outdoor_min72.bin",
           "label_file": "overview/pot_outdoor_min72_labels.bin",
+          "rootrot_label_file": "overview/pot_outdoor_min72_rootrot_labels.bin",
+          "rootrot_aggregation": "max_stage",
           "min": 0.0,
-          "max": 55.135467529296875
+          "max": 79.93204498291016
         },
         "ground": {
           "file": "overview/ground_min72.bin",
           "label_file": "overview/ground_min72_labels.bin",
-          "min": 0.3344542384147644,
-          "max": 97.77713012695312
+          "rootrot_label_file": "overview/ground_min72_rootrot_labels.bin",
+          "rootrot_aggregation": "max_stage",
+          "min": 0.0,
+          "max": 98.04613494873047
         },
         "farm": {
           "file": "overview/farm_min72.bin",
           "label_file": "overview/farm_min72_labels.bin",
+          "rootrot_label_file": "overview/farm_min72_rootrot_labels.bin",
+          "rootrot_aggregation": "max_stage",
           "min": 0.0,
-          "max": 92.87866973876953
+          "max": 94.72261810302734
         }
       }
     }
@@ -424,7 +554,8 @@
       {
         "id": "current",
         "label": "現在",
-        "validtime_jst": "2026-07-04T05:00:00+09:00",
+        "time_semantics": "point",
+        "validtime_jst": "2026-07-10T09:00:00+09:00",
         "status": "available",
         "level_file": "overview/medaka_current_level.bin",
         "risk_file": "overview/medaka_current_risk.bin"
@@ -432,7 +563,8 @@
       {
         "id": "plus1",
         "label": "+1h",
-        "validtime_jst": "2026-07-04T06:00:00+09:00",
+        "time_semantics": "point",
+        "validtime_jst": "2026-07-10T10:00:00+09:00",
         "status": "available",
         "level_file": "overview/medaka_plus1_level.bin",
         "risk_file": "overview/medaka_plus1_risk.bin"
@@ -440,7 +572,8 @@
       {
         "id": "plus3",
         "label": "+3h",
-        "validtime_jst": "2026-07-04T08:00:00+09:00",
+        "time_semantics": "point",
+        "validtime_jst": "2026-07-10T12:00:00+09:00",
         "status": "available",
         "level_file": "overview/medaka_plus3_level.bin",
         "risk_file": "overview/medaka_plus3_risk.bin"
@@ -448,7 +581,8 @@
       {
         "id": "plus6",
         "label": "+6h",
-        "validtime_jst": "2026-07-04T11:00:00+09:00",
+        "time_semantics": "point",
+        "validtime_jst": "2026-07-10T15:00:00+09:00",
         "status": "available",
         "level_file": "overview/medaka_plus6_level.bin",
         "risk_file": "overview/medaka_plus6_risk.bin"
@@ -456,7 +590,8 @@
       {
         "id": "plus15",
         "label": "+15h",
-        "validtime_jst": "2026-07-04T20:00:00+09:00",
+        "time_semantics": "point",
+        "validtime_jst": "2026-07-11T00:00:00+09:00",
         "status": "available",
         "level_file": "overview/medaka_plus15_level.bin",
         "risk_file": "overview/medaka_plus15_risk.bin"
@@ -464,10 +599,14 @@
       {
         "id": "max24",
         "label": "24h内最大上昇",
-        "validtime_jst": "2026-07-05T04:00:00+09:00",
+        "time_semantics": "window",
+        "validtime_jst": "2026-07-11T08:00:00+09:00",
         "status": "available",
         "level_file": "overview/medaka_max24_level.bin",
-        "risk_file": "overview/medaka_max24_risk.bin"
+        "risk_file": "overview/medaka_max24_risk.bin",
+        "window_start_jst": "2026-07-10T09:00:00+09:00",
+        "window_end_jst": "2026-07-11T08:00:00+09:00",
+        "available_hours": 24
       }
     ]
   },

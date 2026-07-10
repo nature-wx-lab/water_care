@@ -1,8 +1,9 @@
 {
-  "schema_version": 1,
-  "preset_version": "2026-07-03.2",
-  "model_version": "engine-1.1.0-v2.1-review04",
+  "schema_version": 2,
+  "preset_version": "2026-07-10.1",
+  "model_version": "engine-1.1.1-v2.1-rootrot4",
   "model_coefficients": {"radiation_calibration": 0.73},
+  "ui_defaults": {"analysis_opacity": 0.5, "detail_map_opacity": 0.7, "terrain_opacity": 0.3, "rain_motion_opacity": 0.6, "show_place_labels": true, "show_detail_map": false, "show_terrain": true, "show_tooltip": true},
   "modes": ["pot_outdoor", "ground", "farm", "medaka", "indoor", "dry_garden"],
   "plant_types": {
     "std_foliage": {"label": "標準観葉", "kc": 0.9, "watering_line": 30, "wet_threshold": 55},
@@ -21,6 +22,73 @@
     "farm": {"capacity_mm": 30, "canopy_factor": 1.0, "ground_factor": 0.75, "plant_type": "vegetable", "raw_fraction": 0.4},
     "indoor": {"capacity_mm": 55, "canopy_factor": 1.8, "plant_type": "std_foliage"},
     "dry_garden": {"capacity_mm": 25, "canopy_factor": 1.0, "plant_type": "succulent"}
+  },
+  "operational_modes": {
+    "pot_outdoor": {"capacity_mm": 22.7, "kc": 0.9, "canopy_factor": 2.5, "coefficient": 1.0, "ground_factor": 1.0, "rain_efficiency": 0.85, "infiltration_limit_mmh": 20, "watering_line": 30, "wet_threshold": 55},
+    "ground": {"capacity_mm": 75, "kc": 0.7, "canopy_factor": 1.0, "coefficient": 1.0, "ground_factor": 0.75, "rain_efficiency": 1.0, "infiltration_limit_mmh": 15, "watering_line": 20, "wet_threshold": 55},
+    "farm": {"capacity_mm": 30, "kc": 1.0, "canopy_factor": 1.0, "coefficient": 1.0, "ground_factor": 0.75, "rain_efficiency": 1.0, "infiltration_limit_mmh": 15, "watering_line": 35, "wet_threshold": 55}
+  },
+  "rootrot_contract": {
+    "wet_stress_ratio_thresholds": [0.3, 0.6, 1.0],
+    "labels": ["心配なし", "湿り気味", "湿りが続いている", "根腐れ注意"],
+    "public_values": "stage_only",
+    "note": "wetStressを各モードの過湿閾値で割った比率から0〜3段階を生成し、wetStress値そのものは公開しません。"
+  },
+  "condition_controls": {
+    "application": "client_proxy",
+    "physical_recompute": false,
+    "disclosure": "条件変更は公開済み標準計算へ残量オフセットを加える簡易補正です。物理モデルの再計算ではありません。",
+    "controls": {
+      "plant_type": {
+        "label": "植物タイプ",
+        "options": {
+          "moist_lover": {"client_proxy": {"moisture_offset_pct": 6}, "physical_target": {"plant_type": "moist_lover", "applied": false}},
+          "foliage": {"client_proxy": {"moisture_offset_pct": 0}, "physical_target": {"plant_type": "std_foliage", "applied": false}},
+          "dry": {"client_proxy": {"moisture_offset_pct": -10}, "physical_target": {"plant_type": "dry_lover", "applied": false}}
+        }
+      },
+      "root_zone": {
+        "label": "鉢・根域",
+        "options": {
+          "small": {"client_proxy": {"moisture_offset_pct": -6}, "physical_target": {"capacity_factor": 0.75, "source": "existing_ui_assumption", "applied": false}},
+          "standard": {"client_proxy": {"moisture_offset_pct": 0}, "physical_target": {"capacity_factor": 1.0, "source": "existing_ui_assumption", "applied": false}},
+          "large": {"client_proxy": {"moisture_offset_pct": 6}, "physical_target": {"capacity_factor": 1.35, "source": "existing_ui_assumption", "applied": false}}
+        }
+      },
+      "watering_policy": {
+        "label": "水やりの方針",
+        "options": {
+          "moist": {"client_proxy": {"moisture_offset_pct": 10}, "physical_target": {"watering_line_offset_pct": 10, "wet_threshold": 45, "applied": false}},
+          "standard": {"client_proxy": {"moisture_offset_pct": 0}, "physical_target": {"watering_line_offset_pct": 0, "wet_threshold": 55, "applied": false}},
+          "dry": {"client_proxy": {"moisture_offset_pct": -10}, "physical_target": {"watering_line_offset_pct": -10, "wet_threshold": 70, "applied": false}}
+        }
+      },
+      "rain_exposure": {
+        "label": "雨当たり",
+        "options": {
+          "full": {"client_proxy": {"moisture_offset_pct": 0}, "physical_target": {"effective_rain_factor": 1.0, "applied": false}},
+          "eaves": {"client_proxy": {"moisture_offset_pct": -7}, "physical_target": {"effective_rain_factor": 0.4, "applied": false}},
+          "inside": {"client_proxy": {"moisture_offset_pct": -14}, "physical_target": {"effective_rain_factor": 0.0, "applied": false}}
+        }
+      },
+      "sun_exposure": {
+        "label": "日当たり",
+        "options": {
+          "sun": {"client_proxy": {"moisture_offset_pct": 0}, "physical_target": {"drying_factor": 1.0, "applied": false}},
+          "half": {"client_proxy": {"moisture_offset_pct": 4}, "physical_target": {"drying_factor": 0.75, "applied": false}},
+          "shade": {"client_proxy": {"moisture_offset_pct": 8}, "physical_target": {"drying_factor": 0.5, "applied": false}},
+          "dark": {"client_proxy": {"moisture_offset_pct": 12}, "physical_target": {"drying_factor": 0.3, "applied": false}}
+        }
+      },
+      "soil_drying": {
+        "label": "土の乾きやすさ",
+        "options": {
+          "fast": {"client_proxy": {"moisture_offset_pct": -7}, "physical_target": {"drying_factor": 1.2, "applied": false}},
+          "standard": {"client_proxy": {"moisture_offset_pct": 0}, "physical_target": {"drying_factor": 1.0, "applied": false}},
+          "slow": {"client_proxy": {"moisture_offset_pct": 7}, "physical_target": {"drying_factor": 0.8, "applied": false}}
+        }
+      }
+    }
   },
   "medaka_vessels": {
     "toro60": {"label": "60Lトロ舟", "surface_m2": 0.315, "volume_l": 60}

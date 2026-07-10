@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+"""Poll a deployed water_care Pages artifact and verify release identity."""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import ssl
+import time
+from urllib.error import HTTPError, URLError
+from urllib.parse import urljoin
+from urllib.request import Request, urlopen
+
+import certifi
+
+
+def fetch_bytes(url: str) -> bytes:
+    request = Request(url, headers={"User-Agent": "NatureWxLab-WaterCare-DeployVerifier/1.0", "Cache-Control": "no-cache"})
+    with urlopen(request, timeout=30, context=ssl.create_default_context(cafile=certifi.where())) as response:
+        return response.read()
+
+
+def verify_once(
+    base_url: str,
+    *,
+    source_commit: str,
+    generator_commit: str,
+    dataset_id: str,
+) -> dict[str, object]:
+    nonce = str(time.time_ns())
+    deployment_url = urljoin(base_url.rstrip("/") + "/", f"deployment.json?verify={nonce}")
+    deployment = json.loads(fetch_bytes(deployment_url).decode("utf-8"))
+    expected = {
+        "source_commit": source_commit,
+        "generator_commit": generator_commit,
+        "dataset_id": dataset_id,
+        "data_schema_version": 4,
+        "grid_count": 31296,
+    }
+    mismatches = {key: (deployment.get(key), value) for key, value in expected.items() if deployment.get(key) != value}
+    if mismatches:
+        raise RuntimeError(f"deployment identity mismatch: {mismatches}")
+    for relative, expected_hash in (deployment.get("core_sha256") or {}).items():
+        payload = fetch_bytes(urljoin(base_url.rstrip("/") + "/", f"{relative}?verify={nonce}"))
+        actual_hash = hashlib.sha256(payload).hexdigest()
+        if actual_hash != expected_hash:
+            raise RuntimeError(f"deployed hash mismatch: {relative}")
+    manifest = json.loads(fetch_bytes(urljoin(base_url.rstrip("/") + "/", f"data/moisture_manifest.json?verify={nonce}")).decode("utf-8"))
+    if manifest.get("dataset_id") != dataset_id or manifest.get("schema_version") != 4:
+        raise RuntimeError("deployed data manifest mismatch")
+    return deployment
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--base-url", required=True)
+    parser.add_argument("--source-commit", required=True)
+    parser.add_argument("--generator-commit", required=True)
+    parser.add_argument("--dataset-id", required=True)
+    parser.add_argument("--attempts", type=int, default=20)
+    parser.add_argument("--delay-seconds", type=float, default=15)
+    args = parser.parse_args()
+    last_error: Exception | None = None
+    for attempt in range(1, args.attempts + 1):
+        try:
+            deployment = verify_once(
+                args.base_url,
+                source_commit=args.source_commit,
+                generator_commit=args.generator_commit,
+                dataset_id=args.dataset_id,
+            )
+            print(json.dumps(deployment, ensure_ascii=False, separators=(",", ":")))
+            return
+        except (HTTPError, URLError, TimeoutError, ConnectionError, json.JSONDecodeError, RuntimeError) as error:
+            last_error = error
+            if attempt == args.attempts:
+                break
+            print(f"deployed Pages not ready {attempt}/{args.attempts}: {type(error).__name__}", flush=True)
+            time.sleep(args.delay_seconds)
+    raise SystemExit(f"deployed Pages verification failed: {type(last_error).__name__ if last_error else 'unknown'}")
+
+
+if __name__ == "__main__":
+    main()
