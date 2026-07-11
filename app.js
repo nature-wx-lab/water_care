@@ -1,4 +1,4 @@
-const JAPAN_VIEW={center:[35.6,138.4],zoom:5,bounds:[[23.2,127.4],[46.6,149.8]]};
+const JAPAN_VIEW={center:[35.6,138.4],zoom:5,bounds:[[23.0,127.4],[48.4,149.8]]};
 const BOUNDS=L.latLngBounds([18,104],[54,166]);
 const PLACE_LABEL_URL='./data/static/place_labels.json?v=station-labels-v2-291e9c72';
 const REFERENCE_BASE_URL='./data/static/reference_basemap.geojson?v=reference-base-5654408c';
