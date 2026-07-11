@@ -33,6 +33,7 @@ STATIC_DATA_FILES = {
     "data/static/grid_pref_names.json",
     "data/static/place_labels.json",
     "data/static/prefectures.geojson",
+    "data/static/reference_basemap.geojson",
 }
 VENDOR_FILES = {
     "vendor/leaflet-1.9.4/LICENSE",
@@ -76,6 +77,7 @@ PATTERNS = (
 )
 COMMIT_RE = re.compile(r"^[0-9a-f]{7,64}$")
 EXPECTED_LAND_MASK_SHA256 = "2ccff1d901cf2cf8b90983aa3959f7636a64d55067167f322c2ebffc873f4394"
+EXPECTED_REFERENCE_BASE_SHA256 = "5654408cf3ae00e41034ad3f443a403f28f8a3c3c633bd9b0da59f3b7106ef3f"
 
 
 def sha256(path: Path) -> str:
@@ -210,6 +212,19 @@ def verify(
             raise RuntimeError(f"deployment core hash mismatch: {name}")
     if sha256(pages / "data/static/grid_land_class.bin") != EXPECTED_LAND_MASK_SHA256:
         raise RuntimeError("fixed Japan land mask sha256 mismatch")
+    reference_base_path = pages / "data/static/reference_basemap.geojson"
+    if sha256(reference_base_path) != EXPECTED_REFERENCE_BASE_SHA256:
+        raise RuntimeError("fixed reference basemap sha256 mismatch")
+    reference_base = json.loads(reference_base_path.read_text(encoding="utf-8"))
+    reference_meta = reference_base.get("metadata") or {}
+    if (
+        reference_meta.get("schema_version") != 1
+        or reference_meta.get("source_dataset") != "Natural Earth ne_10m_admin_0_countries"
+        or reference_meta.get("license") != "Public Domain"
+        or reference_meta.get("feature_count") != len(reference_base.get("features") or [])
+        or reference_meta.get("bounds") != [104.0, 18.0, 166.0, 54.0]
+    ):
+        raise RuntimeError("reference basemap contract mismatch")
 
     findings: list[str] = []
     for name in sorted(actual):

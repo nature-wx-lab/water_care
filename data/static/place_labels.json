@@ -38,6 +38,19 @@
         "count": 220
       }
     ],
+    "visual_contract": {
+      "device_pixel_ratio_independent": true,
+      "font_size_css_px": [
+        9,
+        10,
+        11
+      ],
+      "font_weight": 700,
+      "primary_dot_radius_css_px": 1.8,
+      "secondary_dot_radius_css_px": 1.2,
+      "default_css_opacity": 0.72,
+      "label_free_default_basemap": true
+    },
     "collision": "axis-aligned text rectangles; first ranked label wins"
   },
   "label_count": 923,

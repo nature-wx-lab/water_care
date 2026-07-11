@@ -83,12 +83,17 @@ try {
   await page.waitForFunction(() => Boolean(document.documentElement.dataset.datasetId), null, { timeout: 120000 });
   await page.waitForFunction(() => document.querySelector('#mapInfoBar')?.textContent.startsWith('うるおい残量MAP')
     && ['true', 'false'].includes(document.querySelector('#mapInfoBar')?.dataset.stale), null, { timeout: 120000 });
+  await page.waitForFunction(() => referenceLandLayer && map.hasLayer(referenceLandLayer), null, { timeout: 120000 });
   result.checks.initial = await page.evaluate(() => {
     const assumption = document.querySelector('#modelAssumption');
     const assumptionRect = assumption?.getBoundingClientRect();
     const mapPanelRect = document.querySelector('.map-panel')?.getBoundingClientRect();
+    const timelineRect = document.querySelector('#timeline')?.getBoundingClientRect();
+    const mapStageRect = document.querySelector('.map-stage')?.getBoundingClientRect();
+    const mapRect = document.querySelector('#map')?.getBoundingClientRect();
     const infoBar = document.querySelector('#mapInfoBar');
     const infoRect = infoBar?.getBoundingClientRect();
+    const legendRect = document.querySelector('#legendBox')?.getBoundingClientRect();
     const controlRects = [...document.querySelectorAll('.leaflet-top.leaflet-left .leaflet-control')]
       .map(control => control.getBoundingClientRect());
     const sampleGrid = analysis.publicLandGridIds.find(gridId => map.getBounds().contains([
@@ -130,14 +135,32 @@ try {
       activeBase,
       activeBaseButton: document.querySelector('[data-base].active')?.dataset.base || '',
       paleLayerActive: map.hasLayer(layers.pale),
+      referenceLandActive: Boolean(referenceLandLayer) && map.hasLayer(referenceLandLayer),
+      referenceFeatureCount: referenceLandLayer?.getLayers()?.length || 0,
       terrainLayerActive: map.hasLayer(terrainLayer),
       terrainChecked: Boolean(document.querySelector('#terrainToggle')?.checked),
       analysisOpacityControl: Number(document.querySelector('#opacityRange')?.value),
       analysisOpacityRuntime: analysis.opacity,
       mapBackground: getComputedStyle(document.querySelector('#map')).backgroundColor,
+      layout: {
+        timelineAboveStage: Boolean(timelineRect && mapStageRect) && timelineRect.bottom <= mapStageRect.top + 1,
+        mapStartsInsideStage: Boolean(mapRect && mapStageRect)
+          && mapRect.top >= mapStageRect.top - 1 && mapRect.bottom <= mapStageRect.bottom + 1,
+        infoInsideStage: Boolean(infoRect && mapStageRect)
+          && infoRect.left >= mapStageRect.left && infoRect.right <= mapStageRect.right
+          && infoRect.top >= mapStageRect.top && infoRect.bottom <= mapStageRect.bottom,
+        legendInsideStage: Boolean(legendRect && mapStageRect)
+          && legendRect.left >= mapStageRect.left && legendRect.right <= mapStageRect.right
+          && legendRect.top >= mapStageRect.top && legendRect.bottom <= mapStageRect.bottom,
+        noPageOverflow: document.documentElement.scrollWidth <= window.innerWidth + 1,
+        timelineHeight: timelineRect?.height || 0,
+        stageHeight: mapStageRect?.height || 0,
+      },
       sampleCell,
     };
   });
+  result.checks.initial.referenceBaseRequested = allRequests.some(url => url.includes('/data/static/reference_basemap.geojson'));
+  result.checks.initial.gsiPaleTileRequested = allRequests.some(url => url.includes('/xyz/pale/'));
   await page.waitForFunction(() => placeLabelPayload?.label_count > 0
     && labelLayer?.getDrawStats()?.drawn > 0, null, { timeout: 120000 });
   result.checks.placeLabels = await page.evaluate(async () => {
@@ -171,6 +194,7 @@ try {
       noPrefectureLabels: payload.labels?.every(label => label.kind !== 'prefecture'
         && !prefectureNames.has(label.name)),
       renderContract: payload.render_contract,
+      initialControlOpacity: Number(document.querySelector('#labelOpacity')?.value),
       runtimeLabels: placeLabelPayload?.label_count,
       initial,
       toggleChecked: document.querySelector('#labelsToggle')?.checked,
@@ -183,8 +207,8 @@ try {
   await page.waitForFunction(({ sequence, zoom }) => labelLayer?.getDrawStats()?.drawSequence > sequence
     && labelLayer?.getDrawStats()?.zoom === zoom + 1, { sequence: initialLabelSequence, zoom: initialLabelZoom });
   result.checks.placeLabelZoom = await page.evaluate(() => labelLayer.getDrawStats());
-  await page.evaluate(() => map.setView(JAPAN_VIEW.center, JAPAN_VIEW.zoom, { animate: false }));
-  await page.waitForFunction(() => labelLayer?.getDrawStats()?.zoom === JAPAN_VIEW.zoom);
+  await page.evaluate(() => resetJapanView());
+  await page.waitForFunction(() => labelLayer?.getDrawStats()?.zoom === map.getZoom());
   result.checks.contract = await page.evaluate(async () => {
     const manifestResponse = await fetch(`./data/moisture_manifest.json?audit=${Date.now()}`, { cache: 'no-store' });
     if (!manifestResponse.ok) throw new Error(`manifest audit ${manifestResponse.status}`);
@@ -1302,11 +1326,23 @@ try {
     && result.checks.initial.activeBase === 'pale'
     && result.checks.initial.activeBaseButton === 'pale'
     && result.checks.initial.paleLayerActive
+    && result.checks.initial.referenceLandActive
+    && result.checks.initial.referenceFeatureCount === 14
+    && result.checks.initial.referenceBaseRequested
+    && !result.checks.initial.gsiPaleTileRequested
     && !result.checks.initial.terrainLayerActive
     && !result.checks.initial.terrainChecked
     && result.checks.initial.analysisOpacityControl === 50
     && Math.abs(result.checks.initial.analysisOpacityRuntime - 0.5) < 0.001
     && result.checks.initial.mapBackground === 'rgb(228, 238, 245)'
+    && result.checks.initial.layout.timelineAboveStage
+    && result.checks.initial.layout.mapStartsInsideStage
+    && result.checks.initial.layout.infoInsideStage
+    && result.checks.initial.layout.legendInsideStage
+    && result.checks.initial.layout.noPageOverflow
+    && result.checks.initial.layout.timelineHeight > 40
+    && result.checks.initial.layout.timelineHeight < 120
+    && result.checks.initial.layout.stageHeight > 500
     && result.checks.initial.sampleCell?.width > 0.8
     && result.checks.initial.sampleCell?.width < 3
     && result.checks.initial.sampleCell?.height > 0.8
@@ -1335,7 +1371,7 @@ try {
     && result.checks.placeLabels.runtimeLabels === 923
     && sameJson(result.checks.placeLabels.rankCounts, { 0: 62, 1: 103, 2: 758 })
     && result.checks.placeLabels.cacheVersioned
-    && result.checks.placeLabels.requestUrl.includes('v=station-labels-v1-081b3c91')
+    && result.checks.placeLabels.requestUrl.includes('v=station-labels-v2-291e9c72')
     && result.checks.placeLabels.rankContract
     && result.checks.placeLabels.regionalLabelsComplete
     && result.checks.placeLabels.noPrefectureLabels
@@ -1345,11 +1381,24 @@ try {
       { zoom_ratio_below: 2.8, count: 82 },
       { zoom_ratio_below: null, count: 220 },
     ])
+    && sameJson(result.checks.placeLabels.renderContract?.visual_contract, {
+      device_pixel_ratio_independent: true,
+      font_size_css_px: [9, 10, 11],
+      font_weight: 700,
+      primary_dot_radius_css_px: 1.8,
+      secondary_dot_radius_css_px: 1.2,
+      default_css_opacity: 0.72,
+      label_free_default_basemap: true,
+    })
+    && result.checks.placeLabels.initialControlOpacity === 72
     && result.checks.placeLabels.toggleChecked
     && result.checks.placeLabels.canvasVisible
     && result.checks.placeLabels.initial.zoom === 5
     && result.checks.placeLabels.initial.zoomRatio === 1
     && result.checks.placeLabels.initial.maxLabels === 38
+    && result.checks.placeLabels.initial.fontSize === 9
+    && result.checks.placeLabels.initial.fontWeight === 700
+    && Math.abs(result.checks.placeLabels.initial.opacity - 0.72) < 0.001
     && result.checks.placeLabels.initial.drawn > 0
     && result.checks.placeLabels.initial.drawn <= 38
     && result.checks.placeLabels.initial.candidates >= result.checks.placeLabels.initial.drawn
@@ -1357,6 +1406,7 @@ try {
     && result.checks.placeLabelZoom.zoom === 6
     && result.checks.placeLabelZoom.zoomRatio === 2
     && result.checks.placeLabelZoom.maxLabels === 82
+    && result.checks.placeLabelZoom.fontSize === 10
     && result.checks.placeLabelZoom.drawSequence > result.checks.placeLabels.initial.drawSequence
     && result.checks.placeLabelZoom.drawn > result.checks.placeLabels.initial.drawn
     && contract.schemaVersion >= 4
