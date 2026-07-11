@@ -31,7 +31,7 @@ page.on('response', response => {
   if (url.includes('/data/hourly/') || url.includes('/data/overview/') || url.includes('/data/daily/')) dataRequests.push(url);
   const allowedEmptyGsiTile = response.status() === 404
     && new URL(url).hostname === 'cyberjapandata.gsi.go.jp'
-    && /\/xyz\/(?:blank|hillshademap)\//.test(url);
+    && /\/xyz\/(?:blank|pale|hillshademap)\//.test(url);
   if (response.status() >= 400 && !url.endsWith('/favicon.ico') && !allowedEmptyGsiTile) {
     failedResponses.push(`${response.status()} ${url}`);
   }
@@ -61,14 +61,20 @@ const sameMembers = (left, right) => sameJson([...left].sort(), [...right].sort(
 
 async function canvasState(selector) {
   return page.$eval(selector, canvas => {
-    const context = canvas.getContext('2d');
-    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    const reader = document.createElement('canvas');
+    reader.width = canvas.width;
+    reader.height = canvas.height;
+    const context = reader.getContext('2d', { willReadFrequently: true });
+    context.drawImage(canvas, 0, 0);
+    const pixels = context.getImageData(0, 0, reader.width, reader.height).data;
     const stride = Math.max(4, Math.floor(pixels.length / 40000 / 4) * 4);
     let colored = 0;
+    let maxAlpha = 0;
     for (let index = 3; index < pixels.length; index += stride) {
-      if (pixels[index] > 0 && ++colored > 10) break;
+      maxAlpha = Math.max(maxAlpha, pixels[index]);
+      if (pixels[index] > 0) colored += 1;
     }
-    return { width: canvas.width, height: canvas.height, colored };
+    return { width: canvas.width, height: canvas.height, colored, maxAlpha };
   });
 }
 
@@ -85,6 +91,12 @@ try {
     const infoRect = infoBar?.getBoundingClientRect();
     const controlRects = [...document.querySelectorAll('.leaflet-top.leaflet-left .leaflet-control')]
       .map(control => control.getBoundingClientRect());
+    const sampleGrid = analysis.publicLandGridIds.find(gridId => map.getBounds().contains([
+      analysis.points[gridId * 2], analysis.points[gridId * 2 + 1],
+    ]));
+    const sampleCell = Number.isInteger(sampleGrid)
+      ? gridCellRect(analysis.points[sampleGrid * 2], analysis.points[sampleGrid * 2 + 1])
+      : null;
     return {
       datasetId: document.documentElement.dataset.datasetId,
       layer: document.querySelector('#analysisLayer')?.value,
@@ -115,6 +127,15 @@ try {
       infoClearOfMapControls: Boolean(infoRect) && controlRects.length > 0
         && infoRect.left >= Math.max(...controlRects.map(rect => rect.right)) + 4,
       landMaskNote: document.querySelector('#landMaskNote')?.textContent || '',
+      activeBase,
+      activeBaseButton: document.querySelector('[data-base].active')?.dataset.base || '',
+      paleLayerActive: map.hasLayer(layers.pale),
+      terrainLayerActive: map.hasLayer(terrainLayer),
+      terrainChecked: Boolean(document.querySelector('#terrainToggle')?.checked),
+      analysisOpacityControl: Number(document.querySelector('#opacityRange')?.value),
+      analysisOpacityRuntime: analysis.opacity,
+      mapBackground: getComputedStyle(document.querySelector('#map')).backgroundColor,
+      sampleCell,
     };
   });
   await page.waitForFunction(() => placeLabelPayload?.label_count > 0
@@ -430,6 +451,40 @@ try {
     };
   });
   result.checks.initialCanvas = await canvasState('.analysis-canvas');
+  result.checks.analysisOpacity = await page.evaluate(() => {
+    const control = document.querySelector('#opacityRange');
+    const initialValue = Number(control.value);
+    const gridId = analysis.publicLandGridIds.find(id => map.getBounds().contains([
+      analysis.points[id * 2], analysis.points[id * 2 + 1],
+    ]));
+    const point = map.latLngToContainerPoint([analysis.points[gridId * 2], analysis.points[gridId * 2 + 1]]);
+    const canvas = analysis.canvas;
+    const rect = canvas.getBoundingClientRect();
+    const pixelX = Math.max(0, Math.min(canvas.width - 1, Math.round(point.x * canvas.width / rect.width)));
+    const pixelY = Math.max(0, Math.min(canvas.height - 1, Math.round(point.y * canvas.height / rect.height)));
+    const reader = document.createElement('canvas');
+    reader.width = 1;
+    reader.height = 1;
+    const readerContext = reader.getContext('2d', { willReadFrequently: true });
+    const values = [0, 10, 25, 50, 75, 100];
+    const samples = values.map(value => {
+      control.value = String(value);
+      control.dispatchEvent(new Event('input', { bubbles: true }));
+      readerContext.clearRect(0, 0, 1, 1);
+      readerContext.drawImage(canvas, pixelX, pixelY, 1, 1, 0, 0, 1, 1);
+      const alpha = readerContext.getImageData(0, 0, 1, 1).data[3] / 255;
+      return { value, runtime: analysis.opacity, alpha };
+    });
+    control.value = String(initialValue);
+    control.dispatchEvent(new Event('input', { bubbles: true }));
+    return {
+      initialValue,
+      restoredValue: Number(control.value),
+      restoredRuntime: analysis.opacity,
+      samples,
+      offscreenPaintCanvas: Boolean(analysis.paintCanvas) && !analysis.paintCanvas.isConnected,
+    };
+  });
   result.checks.partialLabelExample = await page.evaluate(() => slotDisplayLabel({
     label: '48h内最小',
     time_semantics: 'window',
@@ -954,6 +1009,10 @@ try {
     applySharedConditions(['flower', 'large', 'very_dry', 'cover', 'west', 'very_fast', 'weak']);
     return Object.fromEntries(SHARED_CONDITION_IDS.map(id => [id, document.getElementById(id).value]));
   });
+  await page.$eval('#opacityRange', control => {
+    control.value = '35';
+    control.dispatchEvent(new Event('input', { bubbles: true }));
+  });
   await page.click('#copyLink');
   await page.waitForFunction(() => Boolean(document.querySelector('#copyLink')?.dataset.lastUrl));
   result.checks.sharedPrivacy = await page.evaluate(({ itemId, itemName }) => {
@@ -961,6 +1020,9 @@ try {
     return {
       url: url.toString(),
       conditions: (url.searchParams.get('c') || '').split(','),
+      base: url.searchParams.get('base'),
+      opacity: Number(url.searchParams.get('op')),
+      runtimeOpacity: analysis.opacity,
       hasTab: url.searchParams.has('tab'),
       hasMydataId: url.toString().includes(itemId),
       hasMydataName: url.toString().includes(encodeURIComponent(itemName)),
@@ -1237,10 +1299,30 @@ try {
     && result.checks.initial.infoClearOfMapControls
     && result.checks.initial.landMaskNote.includes('31,296格子')
     && result.checks.initial.landMaskNote.includes('日本陸域12,404格子')
+    && result.checks.initial.activeBase === 'pale'
+    && result.checks.initial.activeBaseButton === 'pale'
+    && result.checks.initial.paleLayerActive
+    && !result.checks.initial.terrainLayerActive
+    && !result.checks.initial.terrainChecked
+    && result.checks.initial.analysisOpacityControl === 50
+    && Math.abs(result.checks.initial.analysisOpacityRuntime - 0.5) < 0.001
+    && result.checks.initial.mapBackground === 'rgb(228, 238, 245)'
+    && result.checks.initial.sampleCell?.width > 0.8
+    && result.checks.initial.sampleCell?.width < 3
+    && result.checks.initial.sampleCell?.height > 0.8
+    && result.checks.initial.sampleCell?.height < 3
     && (requireStale ? result.checks.initial.stale === 'true' : (allowStale || result.checks.initial.stale === 'false'))
     && result.checks.initialCanvas.width > 0
     && result.checks.initialCanvas.height > 0
     && result.checks.initialCanvas.colored > 10
+    && result.checks.initialCanvas.maxAlpha >= 125
+    && result.checks.initialCanvas.maxAlpha <= 130
+    && result.checks.analysisOpacity.initialValue === 50
+    && result.checks.analysisOpacity.restoredValue === 50
+    && Math.abs(result.checks.analysisOpacity.restoredRuntime - 0.5) < 0.001
+    && result.checks.analysisOpacity.offscreenPaintCanvas
+    && result.checks.analysisOpacity.samples.every(sample => Math.abs(sample.runtime - sample.value / 100) < 0.001
+      && Math.abs(sample.alpha - sample.value / 100) < 0.015)
     && result.checks.placeLabels.schemaVersion === 1
     && result.checks.placeLabels.sourceId === 'station_inventory_current_temperature'
     && result.checks.placeLabels.sourcePath === 'data/weather/japan_all_stations/station_inventory_current_temperature.csv'
@@ -1438,6 +1520,9 @@ try {
       mapRain: 'inside', mapSun: 'sun', mapSpeed: 'fast',
     })
     && result.checks.sharedPrivacy.conditions.length === 6
+    && result.checks.sharedPrivacy.base === 'pale'
+    && result.checks.sharedPrivacy.opacity === 35
+    && Math.abs(result.checks.sharedPrivacy.runtimeOpacity - 0.35) < 0.001
     && !result.checks.sharedPrivacy.hasTab
     && !result.checks.sharedPrivacy.hasMydataId
     && !result.checks.sharedPrivacy.hasMydataName
