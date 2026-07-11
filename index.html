@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="./map-data.css?v=20260711-reference-layout-v2">
   <link rel="stylesheet" href="./detail.css?v=20260710-mydata-v2">
   <link rel="stylesheet" href="./mydata.css?v=20260710-mydata-v2">
-  <link rel="stylesheet" href="./ui-v12.css?v=20260711-map-center-timeline-v6">
+  <link rel="stylesheet" href="./ui-v12.css?v=20260711-map-context-v7">
 </head>
 <body>
   <header class="topbar">
@@ -50,7 +50,18 @@
       <div class="map-panel">
         <div class="timeline" id="timeline" aria-label="対象時刻"></div>
         <div class="map-stage">
-          <div class="map-info-bar" id="mapInfoBar">うるおい管理ナビ｜読み込み中</div><div id="map" aria-label="日本地図"></div><div class="legend" id="legendBox"><b id="legendTitle">うるおい残量</b><i id="legendBar"></i><span id="legendHigh">100 十分</span><span id="legendMid">50</span><span id="legendLow">0 乾燥</span><small id="legendNote">標準条件・雨だけを考慮</small><small id="modelAssumption" role="note">植物標準：7日前に60%で開始／全国MAPは実際の水やり未反映／実測校正未了</small></div><aside id="floatingDetail" class="floating-detail" hidden><header id="floatingHandle"><b id="floatingGrid">地点詳細</b><button id="floatingClose" aria-label="地点詳細を閉じる">×</button></header><div><strong id="floatingValue">--</strong><span id="floatingLabel">--</span></div><p id="floatingReason">地図をクリックしてください。</p><canvas id="floatingChart" width="600" height="220"></canvas><button id="openDetailModal" class="primary small-action">詳しく見る</button></aside><div id="tooltip" class="tooltip" hidden></div>
+          <div class="map-info-bar" id="mapInfoBar" role="status" aria-live="polite" aria-label="地図の表示内容">
+            <div class="map-context-subject">
+              <div class="map-context-field"><span>レイヤー</span><strong id="mapContextLayer">読み込み中</strong></div>
+              <i aria-hidden="true"></i>
+              <div class="map-context-field"><span>モード</span><strong id="mapContextMode">--</strong></div>
+            </div>
+            <div class="map-context-time">
+              <div class="map-context-source-stack"><strong id="mapContextSource" class="map-context-source source-observed">実況</strong><span id="mapContextSlot">現在</span></div>
+              <div class="map-context-field map-context-target"><span>対象日時</span><time id="mapContextTime" datetime=""><span id="mapContextDate">----/--/--</span><strong id="mapContextClock">--:--</strong></time></div>
+            </div>
+            <div class="map-context-extras" id="mapContextExtras" hidden><span id="mapContextObserved" hidden></span><span id="mapContextRain" hidden></span><span id="mapContextHealth" hidden></span></div>
+          </div><div id="map" aria-label="日本地図"></div><div class="legend" id="legendBox"><b id="legendTitle">うるおい残量</b><i id="legendBar"></i><span id="legendHigh">100 十分</span><span id="legendMid">50</span><span id="legendLow">0 乾燥</span><small id="legendNote">標準条件・雨だけを考慮</small><small id="modelAssumption" role="note">植物標準：7日前に60%で開始／全国MAPは実際の水やり未反映／実測校正未了</small></div><aside id="floatingDetail" class="floating-detail" hidden><header id="floatingHandle"><b id="floatingGrid">地点詳細</b><button id="floatingClose" aria-label="地点詳細を閉じる">×</button></header><div><strong id="floatingValue">--</strong><span id="floatingLabel">--</span></div><p id="floatingReason">地図をクリックしてください。</p><canvas id="floatingChart" width="600" height="220"></canvas><button id="openDetailModal" class="primary small-action">詳しく見る</button></aside><div id="tooltip" class="tooltip" hidden></div>
           <div id="detailModal" class="detail-modal" hidden><article class="detail-modal-card">
           <button id="detailModalClose" class="modal-close" aria-label="閉じる">×</button>
           <section id="detailView" class="data-view active"><div class="detail-summary"><div><span>選択格子</span><strong id="detailGrid">地図をクリック</strong></div><div><span>うるおい残量</span><strong id="detailMoisture">--%</strong></div><div><span>判定</span><strong id="detailLabel">--</strong></div><p id="detailReason">全国MAPで地点を選択してください。</p><p id="detailConditions" hidden></p></div><div id="mydataDetailActions" class="mydata-detail-actions" hidden><button type="button" data-detail-log="water_full">たっぷり水やり</button><button type="button" data-detail-log="water_light">軽く水やり</button><button type="button" data-detail-log="water_change">水換え</button><button type="button" data-detail-log="top_up">足し水</button><button type="button" data-detail-log="rain_cover">雨よけ</button><button id="manageMydata" type="button">登録・履歴を管理</button></div><h2 id="detailChartTitle">1時間ごとのうるおい残量と雨量</h2><canvas id="detailChart" width="1100" height="340"></canvas><h2 id="calendarTitle">管理カレンダー</h2><div id="calendarDays" class="calendar-days"><p>地図で地点を選択してください。</p></div><p class="chart-note">青い背景は気象庁予報を使った計算区間です。マイデータは公開時別計算の範囲で水やり記録を反映し、それより先の週間傾向は個別記録を反映しません。</p></section>
@@ -62,6 +73,6 @@
   </main>
   <footer>出典: 気象庁ホームページ（アメダス・天気分布予報・降水短時間予報・推計気象分布・週間天気予報）を加工して作成／<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener noreferrer">地理院タイル</a>／陸域判定・淡色基図: Natural Earthを加工<br>うるおい残量・あふれリスクは、気象庁の観測・予報データと入力された栽培条件から機械的に計算した園芸・メダカ管理の目安です。気象そのものの独自予報ではありません。本ツールは防災用途ではなく、気象庁の土壌雨量指数・キキクル等を再現・代替しません。最終判断は実物の状態とあわせて行ってください。</footer>
   <script src="./vendor/leaflet-1.9.4/leaflet.js"></script>
-  <script src="./app.js?v=20260711-map-center-timeline-v6" defer></script>
+  <script src="./app.js?v=20260711-map-context-v7" defer></script>
 </body>
 </html>

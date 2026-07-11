@@ -81,7 +81,7 @@ async function canvasState(selector) {
 try {
   await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 120000 });
   await page.waitForFunction(() => Boolean(document.documentElement.dataset.datasetId), null, { timeout: 120000 });
-  await page.waitForFunction(() => document.querySelector('#mapInfoBar')?.textContent.startsWith('うるおい残量MAP')
+  await page.waitForFunction(() => document.querySelector('#mapContextLayer')?.textContent === 'うるおい残量MAP'
     && ['true', 'false'].includes(document.querySelector('#mapInfoBar')?.dataset.stale), null, { timeout: 120000 });
   await page.waitForFunction(() => referenceLandLayer && map.hasLayer(referenceLandLayer), null, { timeout: 120000 });
   result.checks.initial = await page.evaluate(() => {
@@ -93,6 +93,8 @@ try {
     const mapRect = document.querySelector('#map')?.getBoundingClientRect();
     const infoBar = document.querySelector('#mapInfoBar');
     const infoRect = infoBar?.getBoundingClientRect();
+    const subjectRect = document.querySelector('.map-context-subject')?.getBoundingClientRect();
+    const timeRect = document.querySelector('.map-context-time')?.getBoundingClientRect();
     const legendRect = document.querySelector('#legendBox')?.getBoundingClientRect();
     const controlRects = [...document.querySelectorAll('.leaflet-top.leaflet-left .leaflet-control')]
       .map(control => control.getBoundingClientRect());
@@ -102,13 +104,31 @@ try {
     const sampleCell = Number.isInteger(sampleGrid)
       ? gridCellRect(analysis.points[sampleGrid * 2], analysis.points[sampleGrid * 2 + 1])
       : null;
+    const target = selectedTarget();
+    const targetDate = new Date(target?.validtime_jst);
+    const expectedDate = targetDate.toLocaleDateString('ja-JP', {
+      timeZone: 'Asia/Tokyo', year: 'numeric', month: 'numeric', day: 'numeric',
+    });
+    const expectedClock = targetDate.toLocaleTimeString('ja-JP', {
+      timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    });
+    const layerText = document.querySelector('#mapContextLayer')?.textContent || '';
+    const modeText = document.querySelector('#mapContextMode')?.textContent || '';
+    const sourceText = document.querySelector('#mapContextSource')?.textContent || '';
+    const visibleDate = document.querySelector('#mapContextDate')?.textContent || '';
+    const visibleClock = document.querySelector('#mapContextClock')?.textContent || '';
     return {
       datasetId: document.documentElement.dataset.datasetId,
       layer: document.querySelector('#analysisLayer')?.value,
       info: document.querySelector('#mapInfoBar')?.textContent,
-      expectedJst: new Date(selectedTarget()?.validtime_jst).toLocaleString('ja-JP', {
-        timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
-      }),
+      layerText,
+      modeText,
+      sourceText,
+      targetLabel: document.querySelector('#mapContextSlot')?.textContent || '',
+      targetDate: visibleDate,
+      targetClock: visibleClock,
+      expectedDate,
+      expectedClock,
       browserTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       stale: document.querySelector('#mapInfoBar')?.dataset.stale,
       floatingHidden: document.querySelector('#floatingDetail')?.hidden,
@@ -128,7 +148,12 @@ try {
       valueCountTotal: Number(document.querySelector('#mapInfoBar')?.dataset.valueCountTotal),
       stamp: document.querySelector('#mapInfoBar')?.textContent || '',
       obsoleteStampAbsent: !document.querySelector('.map-stamp') && !document.querySelector('#mapStampText'),
-      infoTitleMatches: infoBar?.title === infoBar?.textContent,
+      removedLongCopyAbsent: !infoBar?.textContent.includes('アメダス実況を使った計算')
+        && !infoBar?.textContent.includes('日本陸域'),
+      infoTitleComplete: infoBar?.title === infoBar?.getAttribute('aria-label')
+        && [layerText, modeText, sourceText, visibleDate, visibleClock].every(value => infoBar?.title.includes(value)),
+      contextSplit: Boolean(subjectRect?.width && timeRect?.width),
+      contextCardsSeparated: Boolean(subjectRect && timeRect) && subjectRect.right <= timeRect.left,
       infoClearOfMapControls: Boolean(infoRect) && controlRects.length > 0
         && infoRect.left >= Math.max(...controlRects.map(rect => rect.right)) + 4,
       landMaskNote: document.querySelector('#landMaskNote')?.textContent || '',
@@ -526,7 +551,8 @@ try {
     return timeline?.dataset.viewKind === 'hourly'
       && timeline?.dataset.source === '予報'
       && Number(timeline?.dataset.timeIndex) === index
-      && document.querySelector('#mapInfoBar')?.textContent.includes('+1h');
+      && document.querySelector('#mapContextSource')?.textContent === '予報'
+      && document.querySelector('#mapContextSlot')?.textContent === '+1h';
   }, forecastIndex);
   result.checks.timelinePoint = await page.evaluate(() => ({
     viewKind: document.querySelector('#timeline')?.dataset.viewKind,
@@ -535,6 +561,8 @@ try {
     readout: document.querySelector('#timelineReadout')?.textContent,
     stamp: document.querySelector('#mapInfoBar')?.textContent,
     info: document.querySelector('#mapInfoBar')?.textContent,
+    contextSource: document.querySelector('#mapContextSource')?.textContent,
+    contextSlot: document.querySelector('#mapContextSlot')?.textContent,
   }));
 
   const partialSlotIndex = result.checks.contract.plantSlots.findIndex(slot => slot.timeSemantics === 'window' && slot.status === 'partial');
@@ -549,7 +577,8 @@ try {
   await page.waitForFunction(({ label }) => document.querySelector('#timeline')?.dataset.viewKind === 'aggregate'
     && document.querySelector('#timeline')?.dataset.source === '集計'
     && document.querySelector('#timelineReadout')?.textContent.includes(label)
-    && document.querySelector('#mapInfoBar')?.textContent.includes(label), { label: aggregateDisplayLabel });
+    && document.querySelector('#mapContextSource')?.textContent === '集計'
+    && document.querySelector('#mapContextSlot')?.textContent.includes(label), { label: aggregateDisplayLabel });
   result.checks.timelineAggregate = await page.evaluate(() => ({
     viewKind: document.querySelector('#timeline')?.dataset.viewKind,
     source: document.querySelector('#timeline')?.dataset.source,
@@ -559,6 +588,8 @@ try {
     readout: document.querySelector('#timelineReadout')?.textContent,
     stamp: document.querySelector('#mapInfoBar')?.textContent,
     info: document.querySelector('#mapInfoBar')?.textContent,
+    contextSource: document.querySelector('#mapContextSource')?.textContent,
+    contextSlot: document.querySelector('#mapContextSlot')?.textContent,
   }));
   await page.evaluate(() => {
     const button = document.querySelector('#saveImage');
@@ -602,17 +633,19 @@ try {
     && Number(document.querySelector('#timeline')?.dataset.timeIndex) === index, result.checks.contract.currentIndex);
 
   await page.selectOption('#analysisLayer', 'watering');
-  await page.waitForFunction(() => document.querySelector('#mapInfoBar')?.textContent.startsWith('水やりナビMAP'));
+  await page.waitForFunction(() => document.querySelector('#mapContextLayer')?.textContent === '水やりナビMAP');
   result.checks.watering = await page.evaluate(() => ({
     info: document.querySelector('#mapInfoBar')?.textContent,
+    layer: document.querySelector('#mapContextLayer')?.textContent,
     modelDisclosureVisible: !document.querySelector('#conditionNote')?.hidden,
     modelAssumption: document.querySelector('#modelAssumption')?.textContent || '',
   }));
 
   await page.selectOption('#analysisLayer', 'rootrot');
-  await page.waitForFunction(() => document.querySelector('#mapInfoBar')?.textContent.startsWith('根腐れ注意MAP'));
+  await page.waitForFunction(() => document.querySelector('#mapContextLayer')?.textContent === '根腐れ注意MAP');
   result.checks.rootrot = await page.evaluate(() => ({
     info: document.querySelector('#mapInfoBar')?.textContent,
+    layer: document.querySelector('#mapContextLayer')?.textContent,
     counts: document.querySelector('#mapInfoBar')?.dataset.valueCounts,
     legendLabels: [...document.querySelectorAll('#legendNote span')].map(element => element.textContent),
     modelAssumption: document.querySelector('#modelAssumption')?.textContent || '',
@@ -620,9 +653,10 @@ try {
 
   await page.selectOption('#analysisLayer', 'medaka');
   await page.waitForFunction(() => document.querySelectorAll('[data-slot-index]').length === 0
-    && document.querySelector('#mapInfoBar')?.textContent.startsWith('メダカあふれリスクMAP'));
+    && document.querySelector('#mapContextLayer')?.textContent === 'メダカあふれリスクMAP');
   result.checks.medaka = await page.evaluate(() => ({
     info: document.querySelector('#mapInfoBar')?.textContent,
+    layer: document.querySelector('#mapContextLayer')?.textContent,
     slots: document.querySelectorAll('[data-slot-index]').length,
     timelineMin: Number(document.querySelector('#timelineRange')?.min),
     timelineMax: Number(document.querySelector('#timelineRange')?.max),
@@ -646,17 +680,19 @@ try {
   for (const kind of ['rain3h', 'rain6h', 'rain12h']) {
     await page.selectOption('#observedLayer', kind);
     await page.waitForFunction(value => document.querySelector('#observedLayer')?.value === value
-      && document.querySelector('#mapInfoBar')?.textContent.includes(document.querySelector('#observedLayer')?.selectedOptions[0]?.textContent), kind);
+      && document.querySelector('#mapContextObserved')?.textContent.includes(document.querySelector('#observedLayer')?.selectedOptions[0]?.textContent), kind);
     result.checks.observedWindows[kind] = await page.evaluate(() => ({
       info: document.querySelector('#mapInfoBar')?.textContent,
+      observed: document.querySelector('#mapContextObserved')?.textContent,
       canvasVisible: !document.querySelector('.amedas-rain-canvas')?.hidden,
     }));
   }
 
   await page.selectOption('#observedLayer', 'rain24hDiff');
-  await page.waitForFunction(() => document.querySelector('#mapInfoBar')?.textContent.includes('24時間降水 前日差'));
+  await page.waitForFunction(() => document.querySelector('#mapContextObserved')?.textContent.includes('24時間降水 前日差'));
   result.checks.rainDifference = await page.evaluate(() => ({
     info: document.querySelector('#mapInfoBar')?.textContent,
+    observed: document.querySelector('#mapContextObserved')?.textContent,
     canvasVisible: !document.querySelector('.amedas-rain-canvas')?.hidden,
   }));
 
@@ -716,7 +752,7 @@ try {
   await page.click('#detailModalClose');
 
   await page.selectOption('#analysisLayer', 'moisture');
-  await page.waitForFunction(() => document.querySelector('#mapInfoBar')?.textContent.startsWith('うるおい残量MAP'));
+  await page.waitForFunction(() => document.querySelector('#mapContextLayer')?.textContent === 'うるおい残量MAP');
   await page.evaluate(async gridId => selectGridSafely(gridId, { showPanel: false }), result.checks.contract.landMask.class2Example);
   result.checks.unassignedLand = await page.evaluate(() => ({
     selectedGrid: analysis.selectedGrid,
@@ -1085,7 +1121,7 @@ try {
     await legacyTabPage.goto(legacyTabUrl.toString(), { waitUntil: 'domcontentloaded', timeout: 120000 });
     await legacyTabPage.waitForFunction(gridId => Boolean(document.documentElement.dataset.datasetId)
       && analysis.selectedGrid === gridId
-      && document.querySelector('#mapInfoBar')?.textContent.startsWith('うるおい残量MAP'), result.checks.contract.landMask.class1Example, { timeout: 120000 });
+      && document.querySelector('#mapContextLayer')?.textContent === 'うるおい残量MAP', result.checks.contract.landMask.class1Example, { timeout: 120000 });
     result.checks.legacyTabIgnored = await legacyTabPage.evaluate(gridId => ({
       selectedGrid: analysis.selectedGrid,
       expectedGrid: gridId,
@@ -1246,9 +1282,11 @@ try {
     && result.checks.timelinePoint.source === '予報'
     && result.checks.timelinePoint.timeIndex === forecastIndex
     && result.checks.timelinePoint.readout.includes('+1h')
+    && result.checks.timelinePoint.contextSource === '予報'
+    && result.checks.timelinePoint.contextSlot === '+1h'
     && result.checks.timelineAggregate.viewKind === 'aggregate'
     && result.checks.timelineAggregate.source === '集計'
-    && result.checks.timelineAggregate.stamp.includes('集計')
+    && result.checks.timelineAggregate.contextSource === '集計'
     && result.checks.medaka.timelineMin === medakaTimelineMin
     && result.checks.medaka.timelineMax === medakaTimelineMax
     && result.checks.medaka.timelineStep === 1
@@ -1257,7 +1295,7 @@ try {
   const partialDisplayOk = result.checks.partialLabelExample === '48h内最小（37h分）'
     && aggregateSlotIndex >= 0
     && result.checks.timelineAggregate.readout.includes(aggregateDisplayLabel)
-    && result.checks.timelineAggregate.info.includes(aggregateDisplayLabel)
+    && result.checks.timelineAggregate.contextSlot.includes(aggregateDisplayLabel)
     && result.checks.imageSave.ready.length > 0
     && !result.checks.imageSave.error
     && result.checks.imageSave.slotLabel === aggregateDisplayLabel
@@ -1268,7 +1306,7 @@ try {
     && rootrotCountKeys.every(value => Number.isInteger(value) && value >= 0 && value <= 3);
   const observedWindowLabels = { rain3h: '3時間積算降水', rain6h: '6時間積算降水', rain12h: '12時間積算降水' };
   const observedWindowsOk = Object.entries(observedWindowLabels).every(([kind, label]) => result.checks.observedWindows[kind]?.canvasVisible
-    && result.checks.observedWindows[kind]?.info.includes(label));
+    && result.checks.observedWindows[kind]?.observed.includes(label));
   result.checks.contractGate = {
     landMaskOk,
     conditionApplicationOk,
@@ -1309,12 +1347,17 @@ try {
     && result.checks.initial.landGridCount === 12404
     && result.checks.initial.landMaskSha === '2ccff1d901cf2cf8b90983aa3959f7636a64d55067167f322c2ebffc873f4394'
     && result.checks.initial.valueCountTotal === 12404
-    && result.checks.initial.stamp.includes('日本陸域12,404格子')
-    && result.checks.initial.stamp.includes('アメダス実況を使った計算')
-    && result.checks.initial.info.includes('屋外鉢植え（標準）')
-    && result.checks.initial.info.includes(result.checks.initial.expectedJst)
+    && result.checks.initial.layerText === 'うるおい残量MAP'
+    && result.checks.initial.modeText === '屋外鉢植え・標準'
+    && result.checks.initial.sourceText === '実況'
+    && result.checks.initial.targetLabel === '現在'
+    && result.checks.initial.targetDate === result.checks.initial.expectedDate
+    && result.checks.initial.targetClock === result.checks.initial.expectedClock
+    && result.checks.initial.removedLongCopyAbsent
+    && result.checks.initial.contextSplit
+    && result.checks.initial.contextCardsSeparated
     && result.checks.initial.obsoleteStampAbsent
-    && result.checks.initial.infoTitleMatches
+    && result.checks.initial.infoTitleComplete
     && result.checks.initial.infoClearOfMapControls
     && result.checks.initial.landMaskNote.includes('31,296格子')
     && result.checks.initial.landMaskNote.includes('日本陸域12,404格子')
@@ -1424,14 +1467,14 @@ try {
     && selectedTimelineOk
     && partialDisplayOk
     && sameJson(result.checks.observedOptions, observedOptions)
-    && result.checks.watering.info.startsWith('水やりナビMAP')
+    && result.checks.watering.layer === '水やりナビMAP'
     && result.checks.watering.modelDisclosureVisible
     && result.checks.watering.modelAssumption === result.checks.initial.modelAssumption
-    && result.checks.rootrot.info.startsWith('根腐れ注意MAP')
+    && result.checks.rootrot.layer === '根腐れ注意MAP'
     && result.checks.rootrot.modelAssumption === result.checks.initial.modelAssumption
     && rootrotUiOk
     && result.checks.medaka.slots === 0
-    && result.checks.medaka.info.startsWith('メダカあふれリスクMAP')
+    && result.checks.medaka.layer === 'メダカあふれリスクMAP'
     && result.checks.medaka.modelDisclosureHidden
     && result.checks.medaka.medakaDisclosure.includes('実測校正未了')
     && result.checks.medaka.modelAssumption === result.checks.initial.modelAssumption
@@ -1445,7 +1488,7 @@ try {
     && result.checks.mobileMydataManagement.noHorizontalOverflow
     && result.checks.mobileMydataManagement.infoClearOfMapControls
     && observedWindowsOk
-    && result.checks.rainDifference.info.includes('24時間降水 前日差')
+    && result.checks.rainDifference.observed.includes('24時間降水 前日差')
     && result.checks.rainDifference.canvasVisible
     && result.checks.landSelectionDistance.exactGrid === contract.landMask.class1Example
     && result.checks.landSelectionDistance.distantOceanGrid === -1

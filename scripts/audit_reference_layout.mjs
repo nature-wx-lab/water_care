@@ -63,6 +63,8 @@ async function measure(name, width, height) {
       stage: rect('.map-stage'),
       map: rect('#map'),
       info: rect('#mapInfoBar'),
+      subject: rect('.map-context-subject'),
+      time: rect('.map-context-time'),
       legend: rect('#legendBox'),
       controls: rect('.controls'),
       pageScrollWidth: document.documentElement.scrollWidth,
@@ -80,7 +82,7 @@ async function measure(name, width, height) {
   });
   const desktop = width > 760;
   state.ok = Boolean(
-    state.timeline && state.stage && state.map && state.info && state.legend && state.panel
+    state.timeline && state.stage && state.map && state.info && state.subject && state.time && state.legend && state.panel
     && state.timeline.bottom <= state.stage.top + 1
     && state.map.top >= state.stage.top - 1
     && state.map.bottom <= state.stage.bottom + 1
@@ -88,6 +90,9 @@ async function measure(name, width, height) {
     && !overlap(state.timeline, state.info)
     && state.info.top >= state.stage.top + 5
     && state.info.right <= state.stage.right - 5
+    && state.subject.left >= state.info.left
+    && state.time.right <= state.info.right
+    && !overlap(state.subject, state.time)
     && state.legend.left >= state.stage.left
     && state.legend.right <= state.stage.right
     && state.legend.top >= state.stage.top
@@ -112,7 +117,8 @@ try {
   await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 120000 });
   await page.waitForFunction(() => Boolean(document.documentElement.dataset.datasetId), null, { timeout: 120000 });
   await page.waitForFunction(() => referenceLandLayer && map.hasLayer(referenceLandLayer)
-    && labelLayer?.getDrawStats()?.drawn > 0, null, { timeout: 120000 });
+    && labelLayer?.getDrawStats()?.drawn > 0
+    && document.querySelector('#mapContextLayer')?.textContent === 'うるおい残量MAP', null, { timeout: 120000 });
   result.checks.userViewport = await measure('2015x1244-dpr2', 2015, 1244);
   result.checks.desktop = await measure('1440x900-dpr2', 1440, 900);
   result.checks.mobile = await measure('390x900-dpr2', 390, 900);
