@@ -3,7 +3,7 @@
   "preset_version": "2026-07-10.1",
   "model_version": "engine-1.1.1-v2.1-rootrot4",
   "model_coefficients": {"radiation_calibration": 0.73},
-  "ui_defaults": {"analysis_opacity": 0.5, "detail_map_opacity": 0.7, "terrain_opacity": 0.3, "rain_motion_opacity": 0.6, "show_place_labels": true, "show_detail_map": false, "show_terrain": false, "show_tooltip": true},
+  "ui_defaults": {"analysis_opacity": 0.5, "detail_map_opacity": 0.7, "terrain_opacity": 0.3, "rain_motion_opacity": 0.6, "place_label_opacity": 0.72, "show_place_labels": true, "show_detail_map": false, "show_terrain": false, "show_tooltip": true},
   "modes": ["pot_outdoor", "ground", "farm", "medaka", "indoor", "dry_garden"],
   "plant_types": {
     "std_foliage": {"label": "標準観葉", "kc": 0.9, "watering_line": 30, "wet_threshold": 55},

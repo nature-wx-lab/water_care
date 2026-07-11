@@ -9,15 +9,15 @@
 - 計算配列は全国31,296格子、地図表示と全国集計は日本陸域12,404格子
 - うるおい残量／水やりナビ／根腐れ注意／メダカあふれリスク
 - 地点詳細、7日カレンダー、端末内マイデータ、PNG保存、共有URL
-- ベース地図は海が淡い青で中国・韓国など周辺国まで見える地理院淡色地図、地形陰影は既定オフ
+- ベース地図は「天気分布予報プラス」と同じ設計の、淡い海・ラベルなし東アジア陸域・薄い国境、地形陰影は既定オフ
 
 ## データと注意事項
 
 出典は気象庁ホームページ、国土地理院およびNatural Earthです。表示する管理指標は、気象データと選択条件から機械的に計算した園芸・メダカ管理の目安であり、気象そのものの独自予報や防災情報ではありません。
 
-陸域判定はNatural Earthの国境データと既存の都道府県割当から作成した固定マスクを使います。元の国境形状は公開物へ含めず、1格子1バイトの分類結果、作成条件、件数およびSHA-256だけを公開しています。
+陸域判定はNatural Earthの国境データと既存の都道府県割当から作成した固定マスクを使います。判定に使った世界境界原本は公開物へ含めず、1格子1バイトの分類結果、作成条件、件数およびSHA-256だけを公開しています。表示用の淡色基図だけは、同じNatural Earth原本を東アジアの表示範囲へ切り出して簡略化した100KB未満の派生GeoJSONを同梱し、原本SHA-256、切り出し範囲、簡略化条件をmetadataへ記録しています。
 
-地名表示はNatureWxLabの正本 `data/weather/japan_all_stations/station_inventory_current_temperature.csv` から、現行かつ気温を持つ918観測地点を公開用JSONへ派生し、既存の気温分布ツールと同じ周辺国・地域5件（中国、韓国、北朝鮮、ロシア、台湾）を加えた923件です。都道府県名の固定ラベルは含めません。全国表示では周辺国・主要地点を優先して最大38件に衝突回避し、拡大に応じて気象官署・その他の観測地点を最大82件、220件まで追加します。派生JSONには元CSVのSHA-256、抽出件数、順位別件数、描画契約を記録しています。
+地名表示はNatureWxLabの正本 `data/weather/japan_all_stations/station_inventory_current_temperature.csv` から、現行かつ気温を持つ918観測地点を公開用JSONへ派生し、既存の気温分布ツールと同じ周辺国・地域5件（中国、韓国、北朝鮮、ロシア、台湾）を加えた923件です。都道府県名の固定ラベルは含めません。全国表示では周辺国・主要地点を優先して最大38件に衝突回避し、拡大に応じて気象官署・その他の観測地点を最大82件、220件まで追加します。「天気分布予報プラス」のRetina画面での見え方を端末の画素密度に依存せず再現するため、9／10／11px・既定濃度72%で描画します。派生JSONには元CSVのSHA-256、抽出件数、順位別件数、描画契約を記録しています。
 
 解析レイヤーの濃度は既定50%です。約5km格子を実際の緯度・経度範囲で一度だけ描画してからレイヤー全体へ濃度を適用するため、スライダーの0〜100%と画面・PNG保存の透明度が一致します。
 
@@ -27,6 +27,10 @@ NatureWxLab正本からの再生成コマンドは次のとおりです。
 python3 public/water_care/scripts/build_place_labels.py \
   --source data/weather/japan_all_stations/station_inventory_current_temperature.csv \
   --output public/water_care/data/static/place_labels.json
+
+python3 public/water_care/scripts/build_reference_basemap.py \
+  --source data/geography_world_countries.geojson \
+  --output public/water_care/data/static/reference_basemap.geojson
 ```
 
 観測データが2時間超、予報データが12時間超更新されていない場合は、画面に「更新遅延」と表示します。閲覧中は同じデータ版へ固定し、新しいデータを検知した場合は再読み込みを案内します。
@@ -43,4 +47,4 @@ python3 public/water_care/scripts/build_place_labels.py \
 
 ## ライセンス
 
-Leaflet 1.9.4は同梱の `vendor/leaflet-1.9.4/LICENSE` に従います。気象庁・国土地理院のデータおよびタイルは各提供元の利用条件に従います。陸域マスク作成に使用したNatural Earth `ne_10m_admin_0_countries` はPublic Domainです。
+Leaflet 1.9.4は同梱の `vendor/leaflet-1.9.4/LICENSE` に従います。気象庁・国土地理院のデータおよびタイルは各提供元の利用条件に従います。陸域マスク作成と淡色表示基図に使用したNatural Earth `ne_10m_admin_0_countries` はPublic Domainです。
