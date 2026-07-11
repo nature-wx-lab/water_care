@@ -545,13 +545,11 @@ try {
   const aggregateDisplayLabel = aggregateSlot?.status === 'partial'
     ? `${aggregateSlot.label}（${aggregateSlot.availableHours}h分）`
     : aggregateSlot?.label;
-  await page.click(`[data-slot-index="${aggregateSlotIndex}"]`);
-  await page.waitForFunction(({ index, label }) => document.querySelector('#timeline')?.dataset.viewKind === 'aggregate'
+  await page.evaluate(index => loadShortcut(index), aggregateSlotIndex);
+  await page.waitForFunction(({ label }) => document.querySelector('#timeline')?.dataset.viewKind === 'aggregate'
     && document.querySelector('#timeline')?.dataset.source === '集計'
-    && document.querySelector('[data-slot-index].active')?.dataset.slotIndex === String(index)
-    && document.querySelector('[data-slot-index].active')?.textContent === label
     && document.querySelector('#timelineReadout')?.textContent.includes(label)
-    && document.querySelector('#mapInfoBar')?.textContent.includes(label), { index: aggregateSlotIndex, label: aggregateDisplayLabel });
+    && document.querySelector('#mapInfoBar')?.textContent.includes(label), { label: aggregateDisplayLabel });
   result.checks.timelineAggregate = await page.evaluate(() => ({
     viewKind: document.querySelector('#timeline')?.dataset.viewKind,
     source: document.querySelector('#timeline')?.dataset.source,
@@ -598,7 +596,7 @@ try {
     return value;
   });
 
-  await page.click('[data-slot-index="0"]');
+  await page.click('[data-tl-current]');
   await page.waitForFunction(index => document.querySelector('#timeline')?.dataset.viewKind === 'hourly'
     && document.querySelector('#timeline')?.dataset.source === '実況'
     && Number(document.querySelector('#timeline')?.dataset.timeIndex) === index, result.checks.contract.currentIndex);
@@ -621,7 +619,7 @@ try {
   }));
 
   await page.selectOption('#analysisLayer', 'medaka');
-  await page.waitForFunction(() => document.querySelectorAll('[data-slot-index]').length === 6
+  await page.waitForFunction(() => document.querySelectorAll('[data-slot-index]').length === 0
     && document.querySelector('#mapInfoBar')?.textContent.startsWith('メダカあふれリスクMAP'));
   result.checks.medaka = await page.evaluate(() => ({
     info: document.querySelector('#mapInfoBar')?.textContent,
@@ -634,7 +632,7 @@ try {
     modelAssumption: document.querySelector('#modelAssumption')?.textContent || '',
   }));
 
-  await page.click('[data-slot-index="5"]');
+  await page.evaluate(() => loadShortcut(5));
   await page.waitForFunction(() => document.querySelector('#timeline')?.dataset.viewKind === 'aggregate'
     && document.querySelector('#timeline')?.dataset.source === '集計');
   result.checks.medakaAggregate = await page.evaluate(() => ({
@@ -1250,17 +1248,14 @@ try {
     && result.checks.timelinePoint.readout.includes('+1h')
     && result.checks.timelineAggregate.viewKind === 'aggregate'
     && result.checks.timelineAggregate.source === '集計'
-    && result.checks.timelineAggregate.activeShortcut === String(aggregateSlotIndex)
     && result.checks.timelineAggregate.stamp.includes('集計')
     && result.checks.medaka.timelineMin === medakaTimelineMin
     && result.checks.medaka.timelineMax === medakaTimelineMax
     && result.checks.medaka.timelineStep === 1
     && result.checks.medakaAggregate.viewKind === 'aggregate'
-    && result.checks.medakaAggregate.source === '集計'
-    && result.checks.medakaAggregate.activeShortcut === '5';
+    && result.checks.medakaAggregate.source === '集計';
   const partialDisplayOk = result.checks.partialLabelExample === '48h内最小（37h分）'
     && aggregateSlotIndex >= 0
-    && result.checks.timelineAggregate.buttonLabel === aggregateDisplayLabel
     && result.checks.timelineAggregate.readout.includes(aggregateDisplayLabel)
     && result.checks.timelineAggregate.info.includes(aggregateDisplayLabel)
     && result.checks.imageSave.ready.length > 0
@@ -1297,7 +1292,7 @@ try {
   result.ok = failedResponses.length === 0
     && consoleProblems.length === 0
     && result.checks.initial.layer === 'moisture'
-    && result.checks.initial.slots === 8
+    && result.checks.initial.slots === 0
     && result.checks.initial.floatingHidden
     && result.checks.initial.mydataHidden
     && result.checks.initial.modalHidden
@@ -1340,8 +1335,8 @@ try {
     && result.checks.initial.layout.infoInsideStage
     && result.checks.initial.layout.legendInsideStage
     && result.checks.initial.layout.noPageOverflow
-    && result.checks.initial.layout.timelineHeight > 40
-    && result.checks.initial.layout.timelineHeight < 120
+    && result.checks.initial.layout.timelineHeight > 30
+    && result.checks.initial.layout.timelineHeight < 90
     && result.checks.initial.layout.stageHeight > 500
     && result.checks.initial.sampleCell?.width > 0.8
     && result.checks.initial.sampleCell?.width < 3
@@ -1435,7 +1430,7 @@ try {
     && result.checks.rootrot.info.startsWith('根腐れ注意MAP')
     && result.checks.rootrot.modelAssumption === result.checks.initial.modelAssumption
     && rootrotUiOk
-    && result.checks.medaka.slots === 6
+    && result.checks.medaka.slots === 0
     && result.checks.medaka.info.startsWith('メダカあふれリスクMAP')
     && result.checks.medaka.modelDisclosureHidden
     && result.checks.medaka.medakaDisclosure.includes('実測校正未了')
