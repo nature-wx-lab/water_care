@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail fast if the rolling AMeDAS cache regresses to an immutable daily key."""
+"""Fail fast if rolling cache or retained-Pages workflow safety regresses."""
 
 from __future__ import annotations
 
@@ -34,8 +34,9 @@ def main() -> None:
 
     try:
         restore_at, restore = step_block(workflow, "Restore rolling AMeDAS cache")
-        generate_at, _ = step_block(workflow, "Generate and verify schema 4 data")
+        generate_at, generate = step_block(workflow, "Generate and verify schema 4 data")
         save_at, save = step_block(workflow, "Save updated rolling AMeDAS cache")
+        _, retained = step_block(workflow, "Record retained Pages identity")
     except AssertionError as exc:
         raise SystemExit(f"workflow cache contract failed:\n{exc}") from exc
 
@@ -93,6 +94,44 @@ def main() -> None:
     if not restore_at < generate_at < save_at:
         errors.append("AMeDAS cache must restore before generation and save only after generation succeeds")
 
+    require(generate, "id: generation", errors, "generator orchestration step id")
+    require(generate, "--result-file", errors, "structured generator result")
+    require(generate, "exit_code == 75 and status == \"deferred_short_forecast\"", errors, "expected source-window deferral")
+    require(generate, 'should_deploy = "false"', errors, "deferred deployment decision")
+    require(retained, "if: steps.generation.outputs.should_deploy == 'false'", errors, "retained identity condition")
+    require(retained, "deployment.json?retained=", errors, "retained deployment snapshot")
+
+    deploy_guard = "if: steps.generation.outputs.should_deploy == 'true'"
+    for step_name in (
+        "Save updated rolling AMeDAS cache",
+        "Verify public candidate boundary",
+        "Build allowlisted Pages payload",
+        "Verify public Pages payload independently",
+        "Record dataset identity",
+        "Audit exact Pages payload",
+        "Upload GitHub Pages artifact",
+    ):
+        try:
+            _, guarded = step_block(workflow, step_name)
+        except AssertionError as exc:
+            errors.append(str(exc))
+            continue
+        require(guarded, deploy_guard, errors, f"{step_name} deployment guard")
+
+    require(
+        workflow,
+        "needs.build.outputs.should_deploy == 'true' && (github.event_name != 'workflow_dispatch' || inputs.deploy)",
+        errors,
+        "deploy job source-window guard",
+    )
+    require(
+        workflow,
+        "verify-retained-public:\n    if: needs.build.result == 'success' && needs.build.outputs.should_deploy == 'false'",
+        errors,
+        "retained Pages verification job",
+    )
+    require(workflow, "--require-stale", errors, "deterministic stale browser audit")
+
     for label, block in (("restore", restore), ("save", save)):
         if "secrets." in block or "vars." in block:
             errors.append(f"AMeDAS {label} step must not expose secrets or repository variables in cache metadata")
@@ -105,7 +144,7 @@ def main() -> None:
 
     if errors:
         raise SystemExit("workflow cache contract failed:\n- " + "\n- ".join(errors))
-    print("workflow cache contract passed: serialized per-run save with same-day rolling restore")
+    print("workflow contract passed: rolling cache, source-window defer, retained Pages, and stale audit")
 
 
 if __name__ == "__main__":
