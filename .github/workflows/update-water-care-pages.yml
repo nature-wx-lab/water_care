@@ -29,6 +29,11 @@ jobs:
     outputs:
       dataset_id: ${{ steps.metadata.outputs.dataset_id }}
       generator_commit: ${{ steps.generator.outputs.commit }}
+      run_status: ${{ steps.generation.outputs.status }}
+      should_deploy: ${{ steps.generation.outputs.should_deploy }}
+      retained_dataset_id: ${{ steps.retained.outputs.dataset_id }}
+      retained_source_commit: ${{ steps.retained.outputs.source_commit }}
+      retained_generator_commit: ${{ steps.retained.outputs.generator_commit }}
     steps:
       - name: Check out public site
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -140,18 +145,77 @@ jobs:
             water-care-weekly-v1-${{ runner.os }}-
 
       - name: Generate and verify schema 4 data
+        id: generation
         working-directory: generator
         env:
           WATER_CARE_DATA_DIR: ${{ github.workspace }}/site/data
-        run: python scripts/water_care/run_hourly.py
+        run: |
+          result_file="${RUNNER_TEMP}/water-care-run-result.json"
+          set +e
+          python scripts/water_care/run_hourly.py --result-file "$result_file"
+          exit_code=$?
+          set -e
+          python - "$result_file" "$exit_code" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          result_path = Path(sys.argv[1])
+          exit_code = int(sys.argv[2])
+          if not result_path.is_file():
+              raise SystemExit(f"generator result is missing after exit {exit_code}")
+          result = json.loads(result_path.read_text(encoding="utf-8"))
+          status = str(result.get("status") or "")
+          if exit_code == 0 and status in {"updated_verified_promoted", "noop_verified"}:
+              should_deploy = "true"
+          elif exit_code == 75 and status == "deferred_short_forecast":
+              should_deploy = "false"
+          else:
+              raise SystemExit(f"unexpected generator result: exit={exit_code} status={status}")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"status={status}\nshould_deploy={should_deploy}\n")
+          print(json.dumps({
+              "status": status,
+              "should_deploy": should_deploy,
+              "forecast_window": result.get("forecast_window"),
+              "deferred_reason": result.get("deferred_reason"),
+          }, ensure_ascii=False))
+          PY
+
+      - name: Record retained Pages identity
+        id: retained
+        if: steps.generation.outputs.should_deploy == 'false'
+        env:
+          PUBLIC_PAGE_URL: https://nature-wx-lab.github.io/water_care/
+        run: |
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors \
+            "${PUBLIC_PAGE_URL}deployment.json?retained=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --output "${RUNNER_TEMP}/retained-deployment.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          deployment = json.loads((Path(os.environ["RUNNER_TEMP"]) / "retained-deployment.json").read_text(encoding="utf-8"))
+          required = ("dataset_id", "source_commit", "generator_commit")
+          if any(not deployment.get(key) for key in required):
+              raise SystemExit("retained deployment identity is incomplete")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              for key in required:
+                  handle.write(f"{key}={deployment[key]}\n")
+          print(json.dumps({key: deployment[key] for key in required}, ensure_ascii=False))
+          PY
 
       - name: Save updated rolling AMeDAS cache
+        if: steps.generation.outputs.should_deploy == 'true'
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: generator/outputs/uruoi/input_cache/raw
           key: ${{ steps.amedas-cache.outputs.cache-primary-key }}
 
       - name: Verify public candidate boundary
+        if: steps.generation.outputs.should_deploy == 'true'
         working-directory: site
         env:
           PRIVACY_DENYLIST: ${{ secrets.PRIVACY_DENYLIST }}
@@ -163,6 +227,7 @@ jobs:
           git diff --check
 
       - name: Build allowlisted Pages payload
+        if: steps.generation.outputs.should_deploy == 'true'
         run: |
           python generator/scripts/water_care/build_pages_artifact.py \
             --site-dir site \
@@ -171,6 +236,7 @@ jobs:
             --generator-commit "${{ steps.generator.outputs.commit }}"
 
       - name: Verify public Pages payload independently
+        if: steps.generation.outputs.should_deploy == 'true'
         working-directory: site
         env:
           PRIVACY_DENYLIST: ${{ secrets.PRIVACY_DENYLIST }}
@@ -182,6 +248,7 @@ jobs:
 
       - name: Record dataset identity
         id: metadata
+        if: steps.generation.outputs.should_deploy == 'true'
         run: |
           python - <<'PY'
           import json
@@ -193,18 +260,21 @@ jobs:
           PY
 
       - name: Set up Node.js
+        if: steps.generation.outputs.should_deploy == 'true'
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: "24"
           package-manager-cache: false
 
       - name: Install browser audit driver
+        if: steps.generation.outputs.should_deploy == 'true'
         env:
           PLAYWRIGHT_PACKAGE: playwright-core
           PLAYWRIGHT_VERSION: 1.61.1
         run: npm install --no-save --no-package-lock "${PLAYWRIGHT_PACKAGE}@${PLAYWRIGHT_VERSION}"
 
       - name: Audit exact Pages payload
+        if: steps.generation.outputs.should_deploy == 'true'
         run: |
           browser="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$browser" || { echo "Chrome executable is unavailable"; exit 1; }
@@ -221,22 +291,29 @@ jobs:
             node site/scripts/audit_water_care.mjs http://127.0.0.1:8787/ \
             > /tmp/water-care-local-audit.json || audit_status=$?
           python -m json.tool /tmp/water-care-local-audit.json
+          stale_audit_status=0
+          PLAYWRIGHT_MODULE=playwright-core BROWSER_EXECUTABLE="$browser" \
+            node site/scripts/audit_water_care.mjs http://127.0.0.1:8787/ --require-stale \
+            > /tmp/water-care-local-stale-audit.json || stale_audit_status=$?
+          python -m json.tool /tmp/water-care-local-stale-audit.json
           layout_status=0
           PLAYWRIGHT_MODULE=playwright-core BROWSER_EXECUTABLE="$browser" \
             node site/scripts/audit_reference_layout.mjs http://127.0.0.1:8787/ \
             > /tmp/water-care-local-layout-audit.json || layout_status=$?
           python -m json.tool /tmp/water-care-local-layout-audit.json
           test "$audit_status" -eq 0
+          test "$stale_audit_status" -eq 0
           test "$layout_status" -eq 0
 
       - name: Upload GitHub Pages artifact
+        if: steps.generation.outputs.should_deploy == 'true'
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:
           path: pages
           retention-days: 1
 
   deploy:
-    if: needs.build.result == 'success' && (github.event_name != 'workflow_dispatch' || inputs.deploy)
+    if: needs.build.result == 'success' && needs.build.outputs.should_deploy == 'true' && (github.event_name != 'workflow_dispatch' || inputs.deploy)
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -315,3 +392,35 @@ jobs:
           python -m json.tool /tmp/water-care-public-layout-audit.json
           test "$audit_status" -eq 0
           test "$layout_status" -eq 0
+
+  verify-retained-public:
+    if: needs.build.result == 'success' && needs.build.outputs.should_deploy == 'false'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Check out public verification scripts
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          path: site
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.11"
+
+      - name: Install verifier dependency
+        run: python -m pip install certifi==2026.5.20
+
+      - name: Verify retained Pages identity and hashes
+        run: |
+          python site/scripts/verify_deployed_pages.py \
+            --base-url "https://nature-wx-lab.github.io/water_care/" \
+            --source-commit "${{ needs.build.outputs.retained_source_commit }}" \
+            --generator-commit "${{ needs.build.outputs.retained_generator_commit }}" \
+            --dataset-id "${{ needs.build.outputs.retained_dataset_id }}" \
+            --attempts 3 \
+            --delay-seconds 2

@@ -11,6 +11,9 @@ if (process.env.BROWSER_EXECUTABLE) launchOptions.executablePath = process.env.B
 
 const browser = await chromium.launch(launchOptions);
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+if (requireStale) {
+  await page.addInitScript(fixedNow => { Date.now = () => fixedNow; }, Date.parse('2100-01-01T00:00:00Z'));
+}
 const consoleProblems = [];
 const failedResponses = [];
 const dataRequests = [];
@@ -81,8 +84,10 @@ async function canvasState(selector) {
 try {
   await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 120000 });
   await page.waitForFunction(() => Boolean(document.documentElement.dataset.datasetId), null, { timeout: 120000 });
-  await page.waitForFunction(() => document.querySelector('#mapContextLayer')?.textContent === 'うるおい残量MAP'
-    && ['true', 'false'].includes(document.querySelector('#mapInfoBar')?.dataset.stale), null, { timeout: 120000 });
+  await page.waitForFunction(expectStale => document.querySelector('#mapContextLayer')?.textContent === 'うるおい残量MAP'
+    && ['true', 'false'].includes(document.querySelector('#mapInfoBar')?.dataset.stale)
+    && (!expectStale || (document.querySelector('#mapContextHealth')?.textContent === '更新遅延'
+      && document.querySelector('#mapStatus')?.textContent.includes('更新されていません'))), requireStale, { timeout: 120000 });
   await page.waitForFunction(() => referenceLandLayer && map.hasLayer(referenceLandLayer), null, { timeout: 120000 });
   result.checks.initial = await page.evaluate(() => {
     const assumption = document.querySelector('#modelAssumption');
@@ -131,6 +136,9 @@ try {
       expectedClock,
       browserTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       stale: document.querySelector('#mapInfoBar')?.dataset.stale,
+      staleReasons: [...(analysis.dataHealth?.reasons || [])],
+      healthText: document.querySelector('#mapContextHealth')?.textContent || '',
+      statusText: document.querySelector('#mapStatus')?.textContent || '',
       floatingHidden: document.querySelector('#floatingDetail')?.hidden,
       mydataHidden: document.querySelector('#mydataView')?.hidden,
       modalHidden: document.querySelector('#detailModal')?.hidden,
@@ -1385,7 +1393,12 @@ try {
     && result.checks.initial.sampleCell?.width < 3
     && result.checks.initial.sampleCell?.height > 0.8
     && result.checks.initial.sampleCell?.height < 3
-    && (requireStale ? result.checks.initial.stale === 'true' : (allowStale || result.checks.initial.stale === 'false'))
+    && (requireStale
+      ? result.checks.initial.stale === 'true'
+        && result.checks.initial.staleReasons.length >= 2
+        && result.checks.initial.healthText === '更新遅延'
+        && result.checks.initial.statusText.includes('更新されていません')
+      : (allowStale || result.checks.initial.stale === 'false'))
     && result.checks.initialCanvas.width > 0
     && result.checks.initialCanvas.height > 0
     && result.checks.initialCanvas.colored > 10
@@ -1477,7 +1490,12 @@ try {
     && result.checks.medaka.layer === 'メダカあふれリスクMAP'
     && result.checks.medaka.modelDisclosureHidden
     && result.checks.medaka.medakaDisclosure.includes('実測校正未了')
-    && result.checks.medaka.modelAssumption === result.checks.initial.modelAssumption
+    && result.checks.medaka.modelAssumption !== result.checks.initial.modelAssumption
+    && result.checks.medaka.modelAssumption.includes('メダカ条件')
+    && result.checks.medaka.modelAssumption.includes('60Lトロ舟')
+    && result.checks.medaka.modelAssumption.includes('満水まで3cm')
+    && result.checks.medaka.modelAssumption.includes('2L/h')
+    && result.checks.medaka.modelAssumption.includes('実測校正未了')
     && result.checks.mobileDisclosure.visible
     && result.checks.mobileDisclosure.insideMap
     && result.checks.mobileDisclosure.noHorizontalOverflow
