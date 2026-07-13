@@ -462,6 +462,17 @@ try {
     const element = document.getElementById(id);
     return [name, [...(element?.options || [])].map(option => option.value)];
   })), controlElements);
+  result.checks.plantTypeOffsets = await page.evaluate(() => {
+    const element = document.getElementById('mapPlant');
+    const original = element.value;
+    const offsets = {};
+    for (const value of ['moist_lover', 'foliage', 'dry']) {
+      element.value = value;
+      offsets[value] = conditionOffset();
+    }
+    element.value = original;
+    return offsets;
+  });
   result.checks.conditionCombinations = await page.evaluate(ids => {
     const elements = Object.values(ids).map(id => document.getElementById(id));
     const originals = elements.map(element => element.value);
@@ -1241,7 +1252,13 @@ try {
     && Object.entries(controlOptions).every(([name, expected]) => sameJson(result.checks.controls[name], expected))
     && result.checks.conditionCombinations.count === 972
     && result.checks.conditionCombinations.errors.length === 0
-    && result.checks.conditionCombinations.restored;
+    && result.checks.conditionCombinations.restored
+    && result.checks.plantTypeOffsets.moist_lover < result.checks.plantTypeOffsets.foliage
+    && result.checks.plantTypeOffsets.foliage < result.checks.plantTypeOffsets.dry
+    && contract.conditionControls.controls.plant_type.options.moist_lover.client_proxy.moisture_offset_pct
+      < contract.conditionControls.controls.plant_type.options.foliage.client_proxy.moisture_offset_pct
+    && contract.conditionControls.controls.plant_type.options.foliage.client_proxy.moisture_offset_pct
+      < contract.conditionControls.controls.plant_type.options.dry.client_proxy.moisture_offset_pct;
   const rootrotContractOk = sameJson(contract.manifestRootrot?.labels, rootrotLabels)
     && sameJson(contract.presetRootrot?.labels, rootrotLabels)
     && sameJson(contract.manifestRootrot?.wet_stress_ratio_thresholds, [0.3, 0.6, 1.0])

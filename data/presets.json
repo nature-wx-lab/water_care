@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "preset_version": "2026-07-10.1",
+  "preset_version": "2026-07-13.1",
   "model_version": "engine-1.1.1-v2.1-rootrot4",
   "model_coefficients": {"radiation_calibration": 0.73},
   "ui_defaults": {"analysis_opacity": 0.5, "detail_map_opacity": 0.7, "terrain_opacity": 0.3, "rain_motion_opacity": 0.6, "place_label_opacity": 0.72, "show_place_labels": true, "show_detail_map": false, "show_terrain": false, "show_tooltip": true},
@@ -42,9 +42,9 @@
       "plant_type": {
         "label": "植物タイプ",
         "options": {
-          "moist_lover": {"client_proxy": {"moisture_offset_pct": 6}, "physical_target": {"plant_type": "moist_lover", "applied": false}},
+          "moist_lover": {"client_proxy": {"moisture_offset_pct": -6}, "physical_target": {"plant_type": "moist_lover", "applied": false}},
           "foliage": {"client_proxy": {"moisture_offset_pct": 0}, "physical_target": {"plant_type": "std_foliage", "applied": false}},
-          "dry": {"client_proxy": {"moisture_offset_pct": -10}, "physical_target": {"plant_type": "dry_lover", "applied": false}}
+          "dry": {"client_proxy": {"moisture_offset_pct": 10}, "physical_target": {"plant_type": "dry_lover", "applied": false}}
         }
       },
       "root_zone": {
