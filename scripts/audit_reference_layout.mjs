@@ -67,6 +67,9 @@ async function measure(name, width, height) {
       time: rect('.map-context-time'),
       legend: rect('#legendBox'),
       controls: rect('.controls'),
+      homeLink: rect('.brand-home'),
+      homeLinkLabelVisible: Boolean(document.querySelector('.brand-home-label')?.getBoundingClientRect().width),
+      homeLinkHref: document.querySelector('.brand-home')?.href || '',
       pageScrollWidth: document.documentElement.scrollWidth,
       pageScrollHeight: document.documentElement.scrollHeight,
       labelCanvas: labelCanvas ? {
@@ -83,6 +86,9 @@ async function measure(name, width, height) {
   const desktop = width > 760;
   state.ok = Boolean(
     state.timeline && state.stage && state.map && state.info && state.subject && state.time && state.legend && state.panel
+    && state.homeLink && state.homeLink.width >= 28 && state.homeLink.height >= 28
+    && state.homeLinkHref === 'https://naturewxlab.com/'
+    && state.homeLinkLabelVisible === desktop
     && state.timeline.bottom <= state.stage.top + 1
     && state.map.top >= state.stage.top - 1
     && state.map.bottom <= state.stage.bottom + 1
