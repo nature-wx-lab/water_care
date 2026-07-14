@@ -122,6 +122,9 @@ try {
     const sourceText = document.querySelector('#mapContextSource')?.textContent || '';
     const visibleDate = document.querySelector('#mapContextDate')?.textContent || '';
     const visibleClock = document.querySelector('#mapContextClock')?.textContent || '';
+    const homeLink = document.querySelector('.brand-home');
+    const homeLinkRect = homeLink?.getBoundingClientRect();
+    const homeLinkStyle = homeLink ? getComputedStyle(homeLink) : null;
     return {
       datasetId: document.documentElement.dataset.datasetId,
       layer: document.querySelector('#analysisLayer')?.value,
@@ -135,6 +138,14 @@ try {
       expectedDate,
       expectedClock,
       browserTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      homeLink: {
+        href: homeLink?.href || '',
+        ariaLabel: homeLink?.getAttribute('aria-label') || '',
+        title: homeLink?.title || '',
+        visible: Boolean(homeLinkRect?.width && homeLinkRect?.height),
+        backgroundColor: homeLinkStyle?.backgroundColor || '',
+        borderStyle: homeLinkStyle?.borderStyle || '',
+      },
       stale: document.querySelector('#mapInfoBar')?.dataset.stale,
       staleReasons: [...(analysis.dataHealth?.reasons || [])],
       healthText: document.querySelector('#mapContextHealth')?.textContent || '',
@@ -1378,6 +1389,12 @@ try {
     && result.checks.initial.targetLabel === '現在'
     && result.checks.initial.targetDate === result.checks.initial.expectedDate
     && result.checks.initial.targetClock === result.checks.initial.expectedClock
+    && result.checks.initial.homeLink.href === 'https://naturewxlab.com/'
+    && result.checks.initial.homeLink.ariaLabel === 'Nature Wx Lab公式サイトへ戻る'
+    && result.checks.initial.homeLink.title === 'Nature Wx Lab公式サイトへ戻る'
+    && result.checks.initial.homeLink.visible
+    && result.checks.initial.homeLink.backgroundColor !== 'rgba(0, 0, 0, 0)'
+    && result.checks.initial.homeLink.borderStyle === 'solid'
     && result.checks.initial.removedLongCopyAbsent
     && result.checks.initial.contextSplit
     && result.checks.initial.contextCardsSeparated
