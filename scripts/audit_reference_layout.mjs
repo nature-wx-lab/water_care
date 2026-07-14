@@ -70,6 +70,10 @@ async function measure(name, width, height) {
       homeLink: rect('.brand-home'),
       homeLinkLabelVisible: Boolean(document.querySelector('.brand-home-label')?.getBoundingClientRect().width),
       homeLinkHref: document.querySelector('.brand-home')?.href || '',
+      saveButton: rect('#saveImage'),
+      saveButtonLabel: document.querySelector('#saveImage')?.getAttribute('aria-label') || '',
+      copyButton: rect('#copyLink'),
+      copyButtonLabel: document.querySelector('#copyLink')?.getAttribute('aria-label') || '',
       pageScrollWidth: document.documentElement.scrollWidth,
       pageScrollHeight: document.documentElement.scrollHeight,
       labelCanvas: labelCanvas ? {
@@ -89,6 +93,10 @@ async function measure(name, width, height) {
     && state.homeLink && state.homeLink.width >= 28 && state.homeLink.height >= 28
     && state.homeLinkHref === 'https://naturewxlab.com/'
     && state.homeLinkLabelVisible === desktop
+    && state.saveButton && state.saveButton.width >= 28 && state.saveButton.height >= 28
+    && state.saveButtonLabel === '画像を保存'
+    && state.copyButton && state.copyButton.width >= 28 && state.copyButton.height >= 28
+    && state.copyButtonLabel === 'リンクをコピー'
     && state.timeline.bottom <= state.stage.top + 1
     && state.map.top >= state.stage.top - 1
     && state.map.bottom <= state.stage.bottom + 1
