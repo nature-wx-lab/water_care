@@ -92,7 +92,6 @@ try {
   result.checks.initial = await page.evaluate(() => {
     const assumption = document.querySelector('#modelAssumption');
     const assumptionRect = assumption?.getBoundingClientRect();
-    const mapPanelRect = document.querySelector('.map-panel')?.getBoundingClientRect();
     const timelineRect = document.querySelector('#timeline')?.getBoundingClientRect();
     const mapStageRect = document.querySelector('.map-stage')?.getBoundingClientRect();
     const mapRect = document.querySelector('#map')?.getBoundingClientRect();
@@ -101,6 +100,8 @@ try {
     const subjectRect = document.querySelector('.map-context-subject')?.getBoundingClientRect();
     const timeRect = document.querySelector('.map-context-time')?.getBoundingClientRect();
     const legendRect = document.querySelector('#legendBox')?.getBoundingClientRect();
+    const legendScaleRect = document.querySelector('#legendScale')?.getBoundingClientRect();
+    const legendBarRect = document.querySelector('#legendBar')?.getBoundingClientRect();
     const controlRects = [...document.querySelectorAll('.leaflet-top.leaflet-left .leaflet-control')]
       .map(control => control.getBoundingClientRect());
     const sampleGrid = analysis.publicLandGridIds.find(gridId => map.getBounds().contains([
@@ -159,9 +160,18 @@ try {
       modelAssumption: assumption?.textContent || '',
       modelAssumptionVisible: Boolean(assumptionRect?.width && assumptionRect?.height)
         && getComputedStyle(assumption).visibility !== 'hidden',
-      modelAssumptionInsideMap: Boolean(assumptionRect && mapPanelRect)
-        && assumptionRect.left >= mapPanelRect.left && assumptionRect.right <= mapPanelRect.right
-        && assumptionRect.top >= mapPanelRect.top && assumptionRect.bottom <= mapPanelRect.bottom,
+      modelAssumptionInsideControls: Boolean(assumption && document.querySelector('.controls')?.contains(assumption)),
+      modelAssumptionInsideLegend: Boolean(assumption && document.querySelector('#legendBox')?.contains(assumption)),
+      calculationMethod: document.querySelector('#calculationMethod')?.textContent || '',
+      legend: {
+        kind: document.querySelector('#legendBox')?.dataset.kind || '',
+        width: legendRect?.width || 0,
+        height: legendRect?.height || 0,
+        scaleHeight: legendScaleRect?.height || 0,
+        barWidth: legendBarRect?.width || 0,
+        ticks: [...document.querySelectorAll('#legendTicks .legend-tick strong')].map(element => element.textContent),
+        endpointWords: [...document.querySelectorAll('#legendTicks .legend-tick em')].map(element => element.textContent),
+      },
       landGridCount: Number(document.documentElement.dataset.landGridCount),
       landMaskSha: document.documentElement.dataset.landMaskSha || '',
       valueCountTotal: Number(document.querySelector('#mapInfoBar')?.dataset.valueCountTotal),
@@ -669,6 +679,9 @@ try {
     layer: document.querySelector('#mapContextLayer')?.textContent,
     modelDisclosureVisible: !document.querySelector('#conditionNote')?.hidden,
     modelAssumption: document.querySelector('#modelAssumption')?.textContent || '',
+    calculationMethod: document.querySelector('#calculationMethod')?.textContent || '',
+    legendDiscrete: document.querySelector('#legendBox')?.classList.contains('discrete'),
+    legendLabels: [...document.querySelectorAll('#legendNote span')].map(element => element.textContent),
   }));
 
   await page.selectOption('#analysisLayer', 'rootrot');
@@ -679,6 +692,8 @@ try {
     counts: document.querySelector('#mapInfoBar')?.dataset.valueCounts,
     legendLabels: [...document.querySelectorAll('#legendNote span')].map(element => element.textContent),
     modelAssumption: document.querySelector('#modelAssumption')?.textContent || '',
+    calculationMethod: document.querySelector('#calculationMethod')?.textContent || '',
+    legendDiscrete: document.querySelector('#legendBox')?.classList.contains('discrete'),
   }));
 
   await page.selectOption('#analysisLayer', 'medaka');
@@ -694,6 +709,9 @@ try {
     modelDisclosureHidden: Boolean(document.querySelector('#conditionNote')?.hidden),
     medakaDisclosure: document.querySelector('#medakaDisclosure')?.textContent || '',
     modelAssumption: document.querySelector('#modelAssumption')?.textContent || '',
+    calculationMethod: document.querySelector('#calculationMethod')?.textContent || '',
+    legendDiscrete: document.querySelector('#legendBox')?.classList.contains('discrete'),
+    legendLabels: [...document.querySelectorAll('#legendNote span')].map(element => element.textContent),
   }));
 
   await page.evaluate(() => loadShortcut(5));
@@ -1192,14 +1210,12 @@ try {
   result.checks.mobileDisclosure = await page.evaluate(() => {
     const assumption = document.querySelector('#modelAssumption');
     const assumptionRect = assumption?.getBoundingClientRect();
-    const mapPanelRect = document.querySelector('.map-panel')?.getBoundingClientRect();
     return {
       text: assumption?.textContent || '',
       visible: Boolean(assumptionRect?.width && assumptionRect?.height)
         && getComputedStyle(assumption).visibility !== 'hidden',
-      insideMap: Boolean(assumptionRect && mapPanelRect)
-        && assumptionRect.left >= mapPanelRect.left && assumptionRect.right <= mapPanelRect.right
-        && assumptionRect.top >= mapPanelRect.top && assumptionRect.bottom <= mapPanelRect.bottom,
+      insideControls: Boolean(assumption && document.querySelector('.controls')?.contains(assumption)),
+      insideLegend: Boolean(assumption && document.querySelector('#legendBox')?.contains(assumption)),
       noHorizontalOverflow: document.documentElement.scrollWidth <= window.innerWidth,
     };
   });
@@ -1335,6 +1351,10 @@ try {
     && result.checks.imageSave.ready.length > 0
     && !result.checks.imageSave.error
     && result.checks.imageSave.slotLabel === aggregateDisplayLabel
+    && ['100%', '90%', '80%', '70%', '60%', '50%', '40%', '30%', '20%', '10%', '0%']
+      .every(label => result.checks.imageSave.texts.includes(label))
+    && result.checks.imageSave.texts.includes('十分')
+    && result.checks.imageSave.texts.includes('乾燥')
     && result.checks.imageSave.texts.some(text => text.includes(aggregateDisplayLabel));
   const rootrotCountKeys = Object.keys(JSON.parse(result.checks.rootrot.counts || '{}')).map(Number);
   const rootrotUiOk = sameJson(result.checks.rootrot.legendLabels, rootrotLabels)
@@ -1371,15 +1391,23 @@ try {
     && result.checks.initial.mydataHidden
     && result.checks.initial.modalHidden
     && result.checks.initial.modelDisclosureVisible
-    && result.checks.initial.modelDisclosure.includes('7日前を60%')
-    && result.checks.initial.modelDisclosure.includes('実際の水やりは反映しません')
-    && result.checks.initial.modelDisclosure.includes('実測校正未了')
+    && result.checks.initial.modelDisclosure.includes('簡易補正')
     && result.checks.initial.modelDisclosure.includes('物理モデル再計算ではありません')
+    && result.checks.initial.modelDisclosure.includes('マイデータ')
     && result.checks.initial.modelAssumptionVisible
-    && result.checks.initial.modelAssumptionInsideMap
+    && result.checks.initial.modelAssumptionInsideControls
+    && !result.checks.initial.modelAssumptionInsideLegend
     && result.checks.initial.modelAssumption.includes('7日前に60%で開始')
     && result.checks.initial.modelAssumption.includes('実際の水やり未反映')
     && result.checks.initial.modelAssumption.includes('実測校正未了')
+    && result.checks.initial.calculationMethod === '標準計算＋簡易条件補正'
+    && result.checks.initial.legend.kind === 'moisture'
+    && result.checks.initial.legend.width <= 104
+    && result.checks.initial.legend.scaleHeight >= 218
+    && result.checks.initial.legend.barWidth >= 20
+    && result.checks.initial.legend.barWidth <= 28
+    && sameJson(result.checks.initial.legend.ticks, ['100%', '90%', '80%', '70%', '60%', '50%', '40%', '30%', '20%', '10%', '0%'])
+    && sameJson(result.checks.initial.legend.endpointWords, ['十分', '乾燥'])
     && result.checks.initial.landGridCount === 12404
     && result.checks.initial.landMaskSha === '2ccff1d901cf2cf8b90983aa3959f7636a64d55067167f322c2ebffc873f4394'
     && result.checks.initial.valueCountTotal === 12404
@@ -1517,8 +1545,13 @@ try {
     && result.checks.watering.layer === '水やりナビMAP'
     && result.checks.watering.modelDisclosureVisible
     && result.checks.watering.modelAssumption === result.checks.initial.modelAssumption
+    && result.checks.watering.calculationMethod === '標準計算の判定6種'
+    && result.checks.watering.legendDiscrete
+    && sameJson(result.checks.watering.legendLabels, ['水やり候補', '水やり不要', '雨で回復', '水やり見送り', '湿り気味', '根腐れ注意'])
     && result.checks.rootrot.layer === '根腐れ注意MAP'
     && result.checks.rootrot.modelAssumption === result.checks.initial.modelAssumption
+    && result.checks.rootrot.calculationMethod === '標準条件wetStressの4段階'
+    && result.checks.rootrot.legendDiscrete
     && rootrotUiOk
     && result.checks.medaka.slots === 0
     && result.checks.medaka.layer === 'メダカあふれリスクMAP'
@@ -1530,8 +1563,12 @@ try {
     && result.checks.medaka.modelAssumption.includes('満水まで3cm')
     && result.checks.medaka.modelAssumption.includes('2L/h')
     && result.checks.medaka.modelAssumption.includes('実測校正未了')
+    && result.checks.medaka.calculationMethod === '選択した容器条件で計算'
+    && result.checks.medaka.legendDiscrete
+    && sameJson(result.checks.medaka.legendLabels, ['低', '中', '高', '非常に高'])
     && result.checks.mobileDisclosure.visible
-    && result.checks.mobileDisclosure.insideMap
+    && result.checks.mobileDisclosure.insideControls
+    && !result.checks.mobileDisclosure.insideLegend
     && result.checks.mobileDisclosure.noHorizontalOverflow
     && result.checks.mobileDisclosure.text === result.checks.initial.modelAssumption
     && result.checks.mobileMydataManagement.modalVisible

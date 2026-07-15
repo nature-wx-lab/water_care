@@ -4,13 +4,22 @@
 .timeline button{flex:0 0 auto;padding:7px 9px;border:0;border-right:1px solid var(--line);background:#fff;font-size:11px}
 .timeline button.active{background:var(--accent);color:#fff}
 .analysis-canvas{position:absolute;inset:0;z-index:450;pointer-events:none}.amedas-rain-canvas{position:absolute;inset:0;z-index:460;pointer-events:none}
-.legend{position:absolute;z-index:600;right:12px;top:55px;display:grid;gap:3px;width:112px;padding:8px;background:#fffffff0;border:1px solid #aebfba;font-size:10px}
-.legend i{height:130px;background:linear-gradient(#1f5fa8,#4a90d9,#a8d08d,#e8c547,#b5651d)}
-.legend small{color:var(--muted)}
-.legend.discrete{width:150px}.legend.discrete i,.legend.discrete>#legendHigh,.legend.discrete>#legendMid,.legend.discrete>#legendLow{display:none}.legend.discrete small{display:grid;gap:4px}.legend.discrete small span{display:flex;align-items:center;gap:5px;color:#17352f}.legend.discrete small span::before{content:"";width:13px;height:13px;border-radius:2px;background:var(--chip);flex:none}
+.legend{position:absolute;z-index:600;right:12px;top:55px;display:grid;gap:3px;width:96px;padding:8px 6px 9px;background:#fffffff2;border:1px solid #9eb3ad;border-radius:3px;box-shadow:0 2px 8px #17352f1c;color:#17352f;font-size:10px;user-select:none;touch-action:none}
+.legend>b{display:block;font-size:10px;line-height:1.2;text-align:center;white-space:nowrap}
+.legend-scale{position:relative;height:220px;margin:6px 0}
+.legend #legendBar{position:absolute;inset:0 auto 0 0;width:25px;height:auto;border:1px solid #667b75;background:linear-gradient(#1f5fa8,#4a90d9,#a8d08d,#e8c547,#b5651d)}
+.legend-ticks{position:absolute;inset:0}
+.legend-tick{position:absolute;left:0;right:0;top:var(--tick);height:0}
+.legend-tick::before{content:"";position:absolute;left:0;top:0;width:32px;border-top:1px solid #52645f}
+.legend-tick strong,.legend-tick em{position:absolute;top:0;transform:translateY(-50%);white-space:nowrap;letter-spacing:0}
+.legend-tick strong{left:36px;font-size:10px;font-weight:850;font-variant-numeric:tabular-nums}
+.legend-tick em{font-size:8px;font-style:normal;font-weight:800;color:#5c6f69}
+.legend-tick-top em{left:68px}.legend-tick-bottom em{left:54px}
+.legend-legacy-labels,.legend-items{display:none}
+.legend.discrete{width:132px;padding:8px}.legend.discrete .legend-scale{display:none}.legend.discrete .legend-items{display:grid;gap:4px;color:var(--muted)}.legend.discrete .legend-items span{display:flex;align-items:center;gap:5px;color:#17352f}.legend.discrete .legend-items span::before{content:"";width:13px;height:13px;border-radius:2px;background:var(--chip);flex:none}
 .tooltip{position:absolute;z-index:700;padding:6px 8px;background:#17352fea;color:#fff;border-radius:4px;font-size:11px;pointer-events:none}
 .floating-detail{position:absolute;z-index:720;left:18px;bottom:18px;width:min(520px,calc(100% - 36px));padding:9px;background:#fffffff5;border:1px solid #8aa29b;box-shadow:0 5px 18px #17352f35}.floating-detail header{display:flex;justify-content:space-between;align-items:center;cursor:move}.floating-detail header button{border:0;background:transparent;font-size:20px}.floating-detail>div{display:flex;gap:12px;align-items:baseline;margin:5px 0}.floating-detail>div strong{font-size:22px}.floating-detail p{margin:4px 0;font-size:11px}.floating-detail canvas{width:100%;height:150px;border:1px solid var(--line)}
 .header-tool{min-height:28px;padding:0 8px;border:1px solid #ffffff85;border-radius:5px;background:#ffffff16;color:#fff;font-size:11px;font-weight:800}
 .header-tool:hover{background:#ffffff2a}
-@media(max-width:760px){.legend{right:5px;top:48px;width:82px}.legend i{height:100px}.timeline{width:100%;max-width:none}}
+@media(max-width:760px){.legend{right:5px;top:48px;width:88px;padding:7px 5px 8px}.legend-scale{height:200px}.legend #legendBar{width:22px}.legend-tick::before{width:28px}.legend-tick strong{left:32px;font-size:9px}.legend-tick-top em{left:61px}.legend-tick-bottom em{left:50px}.legend.discrete{width:124px}.timeline{width:100%;max-width:none}}
 .map-stage,#map{background:#e4eef5}
