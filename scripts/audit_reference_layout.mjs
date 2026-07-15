@@ -56,6 +56,8 @@ async function measure(name, width, height) {
       } : null;
     };
     const labelCanvas = document.querySelector('.place-label-canvas');
+    const assumption = document.querySelector('#modelAssumption');
+    const legend = document.querySelector('#legendBox');
     return {
       viewport: { width: innerWidth, height: innerHeight, dpr: devicePixelRatio },
       panel: rect('.map-panel'),
@@ -66,6 +68,17 @@ async function measure(name, width, height) {
       subject: rect('.map-context-subject'),
       time: rect('.map-context-time'),
       legend: rect('#legendBox'),
+      legendKind: legend?.dataset.kind || '',
+      legendScale: rect('#legendScale'),
+      legendBar: rect('#legendBar'),
+      legendTicks: [...document.querySelectorAll('#legendTicks .legend-tick strong')].map(element => element.textContent),
+      legendEndpointWords: [...document.querySelectorAll('#legendTicks .legend-tick em')].map(element => element.textContent),
+      calculationSummary: rect('#calculationSummary'),
+      calculationMethod: document.querySelector('#calculationMethod')?.textContent || '',
+      modelAssumptionVisible: Boolean(assumption?.getBoundingClientRect().width && assumption?.getBoundingClientRect().height)
+        && getComputedStyle(assumption).visibility !== 'hidden',
+      modelAssumptionInsideControls: Boolean(assumption && document.querySelector('.controls')?.contains(assumption)),
+      modelAssumptionInsideLegend: Boolean(assumption && legend?.contains(assumption)),
       controls: rect('.controls'),
       homeLink: rect('.brand-home'),
       homeLinkLabelVisible: Boolean(document.querySelector('.brand-home-label')?.getBoundingClientRect().width),
@@ -111,6 +124,17 @@ async function measure(name, width, height) {
     && state.legend.right <= state.stage.right
     && state.legend.top >= state.stage.top
     && state.legend.bottom <= state.stage.bottom
+    && state.legend.width <= (desktop ? 104 : 96)
+    && state.legendKind === 'moisture'
+    && state.legendScale?.height >= (desktop ? 218 : 198)
+    && state.legendBar?.width >= 20 && state.legendBar?.width <= 28
+    && state.legendTicks.join(',') === '100%,90%,80%,70%,60%,50%,40%,30%,20%,10%,0%'
+    && state.legendEndpointWords.join(',') === '十分,乾燥'
+    && state.calculationSummary?.width > 0 && state.calculationSummary?.height > 0
+    && state.calculationMethod === '標準計算＋簡易条件補正'
+    && state.modelAssumptionVisible
+    && state.modelAssumptionInsideControls
+    && !state.modelAssumptionInsideLegend
     && state.pageScrollWidth <= width + 1
     && state.timeline.height < 120
     && state.stage.height >= (desktop ? 600 : 400)
