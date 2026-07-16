@@ -776,6 +776,9 @@ try {
     canvasVisible: !document.querySelector('.amedas-rain-canvas')?.hidden,
   }));
 
+  await page.selectOption('#analysisLayer', 'moisture');
+  await page.waitForFunction(() => document.querySelector('#mapContextLayer')?.textContent === 'うるおい残量MAP');
+
   result.checks.landSelectionDistance = await page.evaluate(gridId => {
     const latitude = analysis.points[gridId * 2];
     const longitude = analysis.points[gridId * 2 + 1];
@@ -818,6 +821,11 @@ try {
     landClass: analysis.landClasses?.[analysis.selectedGrid],
     floatingHidden: Boolean(document.querySelector('#floatingDetail')?.hidden),
     modalVisible: !document.querySelector('#detailModal')?.hidden,
+    chartAria: document.querySelector('#detailChart')?.getAttribute('aria-label') || '',
+    rainUnit: document.querySelector('#detailChart')?.dataset.rainUnit || '',
+    rainDataMax: Number(document.querySelector('#detailChart')?.dataset.rainDataMax),
+    rainAxisMax: Number(document.querySelector('#detailChart')?.dataset.rainAxisMax),
+    rainAxisStep: Number(document.querySelector('#detailChart')?.dataset.rainAxisStep),
   }));
   await page.click('#detailModalClose');
   await page.mouse.click(box.x + clickTargets.secondPoint.x, box.y + clickTargets.secondPoint.y);
@@ -1646,6 +1654,14 @@ try {
     && result.checks.detail.gridIdAttribute === result.checks.detail.selectedGrid
     && result.checks.detail.grid.includes('付近')
     && !result.checks.detail.grid.startsWith(`格子 ${result.checks.detail.selectedGrid}`)
+    && result.checks.detail.chartAria.includes('右軸・mm')
+    && result.checks.detail.rainUnit === 'mm'
+    && Number.isFinite(result.checks.detail.rainDataMax)
+    && Number.isFinite(result.checks.detail.rainAxisMax)
+    && Number.isFinite(result.checks.detail.rainAxisStep)
+    && result.checks.detail.rainDataMax >= 0
+    && result.checks.detail.rainAxisMax >= result.checks.detail.rainDataMax
+    && result.checks.detail.rainAxisStep > 0
     && result.checks.mapClickRoundTrip.clicks === 3
     && result.checks.mapClickRoundTrip.firstGrid !== result.checks.mapClickRoundTrip.secondGrid
     && result.checks.mapClickRoundTrip.selectedGrid === result.checks.mapClickRoundTrip.secondGrid
