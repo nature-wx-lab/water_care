@@ -102,6 +102,10 @@ try {
     const legendRect = document.querySelector('#legendBox')?.getBoundingClientRect();
     const legendScaleRect = document.querySelector('#legendScale')?.getBoundingClientRect();
     const legendBarRect = document.querySelector('#legendBar')?.getBoundingClientRect();
+    const legendTopLabelRect = document.querySelector('.legend-end-label-top')?.getBoundingClientRect();
+    const legendBottomLabelRect = document.querySelector('.legend-end-label-bottom')?.getBoundingClientRect();
+    const subjectStyle = document.querySelector('.map-context-subject')
+      ? getComputedStyle(document.querySelector('.map-context-subject')) : null;
     const controlRects = [...document.querySelectorAll('.leaflet-top.leaflet-left .leaflet-control')]
       .map(control => control.getBoundingClientRect());
     const sampleGrid = analysis.publicLandGridIds.find(gridId => map.getBounds().contains([
@@ -170,7 +174,21 @@ try {
         scaleHeight: legendScaleRect?.height || 0,
         barWidth: legendBarRect?.width || 0,
         ticks: [...document.querySelectorAll('#legendTicks .legend-tick strong')].map(element => element.textContent),
-        endpointWords: [...document.querySelectorAll('#legendTicks .legend-tick em')].map(element => element.textContent),
+        endpointWords: [...document.querySelectorAll('#legendScale .legend-end-label')].map(element => element.textContent),
+        topLabelAboveBar: Boolean(legendTopLabelRect && legendBarRect)
+          && legendTopLabelRect.bottom <= legendBarRect.top + 1,
+        bottomLabelBelowBar: Boolean(legendBottomLabelRect && legendBarRect)
+          && legendBottomLabelRect.top >= legendBarRect.bottom - 1,
+      },
+      subjectStyle: {
+        color: subjectStyle?.color || '',
+        background: subjectStyle?.backgroundColor || '',
+        accentWidth: Number.parseFloat(subjectStyle?.borderLeftWidth || '0'),
+      },
+      mapView: {
+        zoom: map.getZoom(),
+        containsWakkanai: map.getBounds().contains([45.42, 141.68]),
+        containsKagoshima: map.getBounds().contains([31.60, 130.55]),
       },
       landGridCount: Number(document.documentElement.dataset.landGridCount),
       landMaskSha: document.documentElement.dataset.landMaskSha || '',
@@ -479,6 +497,20 @@ try {
       hourlyCount: manifest.hourly.times.length,
     };
   });
+  result.checks.locationLabel = await page.evaluate(async () => {
+    const gridId = 13463;
+    const fallback = gridLocationLabel(gridId);
+    const resolved = await resolveGridLocationLabel(gridId);
+    return {
+      gridId,
+      landClass: analysis.landClasses?.[gridId],
+      fallback,
+      resolved,
+      cached: gridLocationLabel(gridId),
+      latitude: analysis.points?.[gridId * 2],
+      longitude: analysis.points?.[gridId * 2 + 1],
+    };
+  });
   result.checks.controls = await page.evaluate(ids => Object.fromEntries(Object.entries(ids).map(([name, id]) => {
     const element = document.getElementById(id);
     return [name, [...(element?.options || [])].map(option => option.value)];
@@ -781,6 +813,7 @@ try {
     && analysis.selectedGrid === gridId, clickTargets.firstGrid);
   result.checks.detail = await page.evaluate(() => ({
     grid: document.querySelector('#detailGrid')?.textContent,
+    gridIdAttribute: Number(document.querySelector('#detailGrid')?.dataset.gridId),
     selectedGrid: analysis.selectedGrid,
     landClass: analysis.landClasses?.[analysis.selectedGrid],
     floatingHidden: Boolean(document.querySelector('#floatingDetail')?.hidden),
@@ -1076,7 +1109,8 @@ try {
   await page.click('#openDetailModal');
   await page.waitForFunction(gridId => document.querySelector('#detailModal')?.hidden === false
     && !document.querySelector('#detailModal')?.dataset.itemId
-    && document.querySelector('#detailGrid')?.textContent.includes(`格子 ${gridId}`), result.checks.contract.landMask.class1Example);
+    && Number(document.querySelector('#detailGrid')?.dataset.gridId) === gridId
+    && document.querySelector('#detailGrid')?.textContent.includes('付近'), result.checks.contract.landMask.class1Example);
   result.checks.mapDetailRestoredAfterMydata = await page.evaluate(gridId => ({
     selectedGrid: analysis.selectedGrid,
     expectedGrid: gridId,
@@ -1353,7 +1387,7 @@ try {
     && result.checks.imageSave.slotLabel === aggregateDisplayLabel
     && ['100%', '90%', '80%', '70%', '60%', '50%', '40%', '30%', '20%', '10%', '0%']
       .every(label => result.checks.imageSave.texts.includes(label))
-    && result.checks.imageSave.texts.includes('十分')
+    && result.checks.imageSave.texts.includes('湿潤')
     && result.checks.imageSave.texts.includes('乾燥')
     && result.checks.imageSave.texts.some(text => text.includes(aggregateDisplayLabel));
   const rootrotCountKeys = Object.keys(JSON.parse(result.checks.rootrot.counts || '{}')).map(Number);
@@ -1403,11 +1437,19 @@ try {
     && result.checks.initial.calculationMethod === '標準計算＋簡易条件補正'
     && result.checks.initial.legend.kind === 'moisture'
     && result.checks.initial.legend.width <= 104
-    && result.checks.initial.legend.scaleHeight >= 218
+    && result.checks.initial.legend.scaleHeight >= 248
     && result.checks.initial.legend.barWidth >= 20
     && result.checks.initial.legend.barWidth <= 28
     && sameJson(result.checks.initial.legend.ticks, ['100%', '90%', '80%', '70%', '60%', '50%', '40%', '30%', '20%', '10%', '0%'])
-    && sameJson(result.checks.initial.legend.endpointWords, ['十分', '乾燥'])
+    && sameJson(result.checks.initial.legend.endpointWords, ['湿潤', '乾燥'])
+    && result.checks.initial.legend.topLabelAboveBar
+    && result.checks.initial.legend.bottomLabelBelowBar
+    && result.checks.initial.subjectStyle.color === 'rgb(23, 53, 47)'
+    && result.checks.initial.subjectStyle.background !== 'rgb(23, 53, 47)'
+    && result.checks.initial.subjectStyle.accentWidth >= 3
+    && result.checks.initial.mapView.zoom >= 5.5
+    && result.checks.initial.mapView.containsWakkanai
+    && result.checks.initial.mapView.containsKagoshima
     && result.checks.initial.landGridCount === 12404
     && result.checks.initial.landMaskSha === '2ccff1d901cf2cf8b90983aa3959f7636a64d55067167f322c2ebffc873f4394'
     && result.checks.initial.valueCountTotal === 12404
@@ -1506,20 +1548,30 @@ try {
     && result.checks.placeLabels.initialControlOpacity === 72
     && result.checks.placeLabels.toggleChecked
     && result.checks.placeLabels.canvasVisible
-    && result.checks.placeLabels.initial.zoom === 5
-    && result.checks.placeLabels.initial.zoomRatio === 1
-    && result.checks.placeLabels.initial.maxLabels === 38
-    && result.checks.placeLabels.initial.fontSize === 9
+    && result.checks.placeLabels.initial.zoom >= 5.5
+    && Math.abs(result.checks.placeLabels.initial.zoomRatio
+      - Math.max(1, 2 ** (result.checks.placeLabels.initial.zoom - 5))) < 0.001
+    && result.checks.placeLabels.initial.maxLabels
+      === (result.checks.placeLabels.initial.zoomRatio < 1.6 ? 38
+        : result.checks.placeLabels.initial.zoomRatio < 2.8 ? 82 : 220)
+    && result.checks.placeLabels.initial.fontSize
+      === (result.checks.placeLabels.initial.zoomRatio < 1.5 ? 9
+        : result.checks.placeLabels.initial.zoomRatio < 3 ? 10 : 11)
     && result.checks.placeLabels.initial.fontWeight === 700
     && Math.abs(result.checks.placeLabels.initial.opacity - 0.72) < 0.001
     && result.checks.placeLabels.initial.drawn > 0
     && result.checks.placeLabels.initial.drawn <= 38
     && result.checks.placeLabels.initial.candidates >= result.checks.placeLabels.initial.drawn
     && result.checks.placeLabels.initial.collisionSkipped > 0
-    && result.checks.placeLabelZoom.zoom === 6
-    && result.checks.placeLabelZoom.zoomRatio === 2
-    && result.checks.placeLabelZoom.maxLabels === 82
-    && result.checks.placeLabelZoom.fontSize === 10
+    && result.checks.placeLabelZoom.zoom === result.checks.placeLabels.initial.zoom + 1
+    && Math.abs(result.checks.placeLabelZoom.zoomRatio
+      - Math.max(1, 2 ** (result.checks.placeLabelZoom.zoom - 5))) < 0.001
+    && result.checks.placeLabelZoom.maxLabels
+      === (result.checks.placeLabelZoom.zoomRatio < 1.6 ? 38
+        : result.checks.placeLabelZoom.zoomRatio < 2.8 ? 82 : 220)
+    && result.checks.placeLabelZoom.fontSize
+      === (result.checks.placeLabelZoom.zoomRatio < 1.5 ? 9
+        : result.checks.placeLabelZoom.zoomRatio < 3 ? 10 : 11)
     && result.checks.placeLabelZoom.drawSequence > result.checks.placeLabels.initial.drawSequence
     && result.checks.placeLabelZoom.drawn > result.checks.placeLabels.initial.drawn
     && contract.schemaVersion >= 4
@@ -1582,15 +1634,25 @@ try {
     && result.checks.landSelectionDistance.exactGrid === contract.landMask.class1Example
     && result.checks.landSelectionDistance.distantOceanGrid === -1
     && result.checks.landSelectionDistance.hitRadiusSquared === 0.004
+    && result.checks.locationLabel.gridId === 13463
+    && result.checks.locationLabel.landClass === 1
+    && result.checks.locationLabel.resolved === '埼玉県加須市付近'
+    && result.checks.locationLabel.cached === result.checks.locationLabel.resolved
+    && Number.isFinite(result.checks.locationLabel.latitude)
+    && Number.isFinite(result.checks.locationLabel.longitude)
     && result.checks.detail.floatingHidden
     && result.checks.detail.modalVisible
     && [1, 2].includes(result.checks.detail.landClass)
+    && result.checks.detail.gridIdAttribute === result.checks.detail.selectedGrid
+    && result.checks.detail.grid.includes('付近')
+    && !result.checks.detail.grid.startsWith(`格子 ${result.checks.detail.selectedGrid}`)
     && result.checks.mapClickRoundTrip.clicks === 3
     && result.checks.mapClickRoundTrip.firstGrid !== result.checks.mapClickRoundTrip.secondGrid
     && result.checks.mapClickRoundTrip.selectedGrid === result.checks.mapClickRoundTrip.secondGrid
     && result.checks.mapClickRoundTrip.modalVisible
     && result.checks.unassignedLand.landClass === 2
-    && result.checks.unassignedLand.calendarTitle.includes('日本陸域・都道府県未割当')
+    && result.checks.unassignedLand.calendarTitle.startsWith('管理カレンダー｜')
+    && !result.checks.unassignedLand.calendarTitle.includes('格子 ')
     && result.checks.unassignedLand.calendarText.includes('週間傾向なし')
     && result.checks.unassignedLand.calendarText.includes('都道府県未割当')
     && result.checks.legacyOutsideGrid.landClass === 0
@@ -1605,7 +1667,7 @@ try {
     && result.checks.legacyForeignGrid.detailGrid.includes('日本国外陸域・対象外')
     && result.checks.legacyForeignGrid.floatingGrid === result.checks.legacyForeignGrid.detailGrid
     && result.checks.legacyRecovery.landClass === 1
-    && result.checks.legacyRecovery.status.includes(`格子 ${contract.landMask.class1Example}`)
+    && result.checks.legacyRecovery.status.includes('付近')
     && !result.checks.legacyRecovery.status.includes('マスク外')
     && result.checks.legacySharedOutside.landClass === 0
     && result.checks.legacySharedOutside.floatingVisible
@@ -1679,7 +1741,8 @@ try {
     && result.checks.mydataOutsideNoStaleChart.label === '対象外'
     && result.checks.mapDetailRestoredAfterMydata.selectedGrid === result.checks.mapDetailRestoredAfterMydata.expectedGrid
     && result.checks.mapDetailRestoredAfterMydata.modalItemId === ''
-    && result.checks.mapDetailRestoredAfterMydata.grid.includes(`格子 ${result.checks.mapDetailRestoredAfterMydata.expectedGrid}`)
+    && result.checks.mapDetailRestoredAfterMydata.grid.includes('付近')
+    && !result.checks.mapDetailRestoredAfterMydata.grid.includes(`格子 ${result.checks.mapDetailRestoredAfterMydata.expectedGrid}`)
     && result.checks.mapDetailRestoredAfterMydata.actionsHidden
     && result.checks.mapDetailRestoredAfterMydata.conditionsHidden
     && result.checks.mapDetailRestoredAfterMydata.chartVisible

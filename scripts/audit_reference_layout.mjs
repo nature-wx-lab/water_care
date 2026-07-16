@@ -58,6 +58,8 @@ async function measure(name, width, height) {
     const labelCanvas = document.querySelector('.place-label-canvas');
     const assumption = document.querySelector('#modelAssumption');
     const legend = document.querySelector('#legendBox');
+    const subject = document.querySelector('.map-context-subject');
+    const subjectStyle = subject ? getComputedStyle(subject) : null;
     return {
       viewport: { width: innerWidth, height: innerHeight, dpr: devicePixelRatio },
       panel: rect('.map-panel'),
@@ -72,7 +74,9 @@ async function measure(name, width, height) {
       legendScale: rect('#legendScale'),
       legendBar: rect('#legendBar'),
       legendTicks: [...document.querySelectorAll('#legendTicks .legend-tick strong')].map(element => element.textContent),
-      legendEndpointWords: [...document.querySelectorAll('#legendTicks .legend-tick em')].map(element => element.textContent),
+      legendEndpointWords: [...document.querySelectorAll('#legendScale .legend-end-label')].map(element => element.textContent),
+      legendTopLabel: rect('.legend-end-label-top'),
+      legendBottomLabel: rect('.legend-end-label-bottom'),
       calculationSummary: rect('#calculationSummary'),
       calculationMethod: document.querySelector('#calculationMethod')?.textContent || '',
       modelAssumptionVisible: Boolean(assumption?.getBoundingClientRect().width && assumption?.getBoundingClientRect().height)
@@ -96,7 +100,13 @@ async function measure(name, width, height) {
         opacity: Number(getComputedStyle(labelCanvas).opacity),
       } : null,
       labelStats: labelLayer?.getDrawStats() || null,
+      subjectColor: subjectStyle?.color || '',
+      subjectBackground: subjectStyle?.backgroundColor || '',
+      subjectAccentWidth: subjectStyle?.borderLeftWidth || '',
+      mapZoom: map.getZoom(),
       mapBounds: map.getBounds().toBBoxString(),
+      mapContainsWakkanai: map.getBounds().contains([45.42, 141.68]),
+      mapContainsKagoshima: map.getBounds().contains([31.60, 130.55]),
       referenceLandActive: Boolean(referenceLandLayer) && map.hasLayer(referenceLandLayer),
     };
   });
@@ -126,10 +136,12 @@ async function measure(name, width, height) {
     && state.legend.bottom <= state.stage.bottom
     && state.legend.width <= (desktop ? 104 : 96)
     && state.legendKind === 'moisture'
-    && state.legendScale?.height >= (desktop ? 218 : 198)
+    && state.legendScale?.height >= (desktop ? 248 : 228)
     && state.legendBar?.width >= 20 && state.legendBar?.width <= 28
     && state.legendTicks.join(',') === '100%,90%,80%,70%,60%,50%,40%,30%,20%,10%,0%'
-    && state.legendEndpointWords.join(',') === '十分,乾燥'
+    && state.legendEndpointWords.join(',') === '湿潤,乾燥'
+    && state.legendTopLabel?.bottom <= state.legendBar?.top + 1
+    && state.legendBottomLabel?.top >= state.legendBar?.bottom - 1
     && state.calculationSummary?.width > 0 && state.calculationSummary?.height > 0
     && state.calculationMethod === '標準計算＋簡易条件補正'
     && state.modelAssumptionVisible
@@ -139,7 +151,13 @@ async function measure(name, width, height) {
     && state.timeline.height < 120
     && state.stage.height >= (desktop ? 600 : 400)
     && state.referenceLandActive
-    && state.labelStats?.fontSize <= 9
+    && state.subjectColor === 'rgb(23, 53, 47)'
+    && state.subjectBackground !== 'rgb(23, 53, 47)'
+    && Number.parseFloat(state.subjectAccentWidth) >= 3
+    && state.mapZoom >= (desktop ? 5.5 : 4.5)
+    && state.mapContainsWakkanai
+    && state.mapContainsKagoshima
+    && state.labelStats?.fontSize <= 10
     && state.labelStats?.fontWeight === 700
     && Math.abs(state.labelStats?.opacity - 0.72) < 0.001
     && Math.abs(state.labelCanvas?.width / state.labelCanvas?.rect?.width - 2) < 0.02
