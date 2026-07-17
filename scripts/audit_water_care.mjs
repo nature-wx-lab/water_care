@@ -126,9 +126,17 @@ try {
     const sampleGrid = analysis.publicLandGridIds.find(gridId => map.getBounds().contains([
       analysis.points[gridId * 2], analysis.points[gridId * 2 + 1],
     ]));
-    const sampleCell = Number.isInteger(sampleGrid)
+    const rawSampleCell = Number.isInteger(sampleGrid)
       ? gridCellRect(analysis.points[sampleGrid * 2], analysis.points[sampleGrid * 2 + 1])
       : null;
+    const sampleCell = rawSampleCell ? {
+      ...rawSampleCell,
+      deviceScale: devicePixelRatio,
+      devicePixelAligned: ['left', 'top', 'width', 'height'].every(key => {
+        const deviceValue = rawSampleCell[key] * devicePixelRatio;
+        return Math.abs(deviceValue - Math.round(deviceValue)) < 0.001;
+      }),
+    } : null;
     const target = selectedTarget();
     const targetDate = new Date(target?.validtime_jst);
     const expectedDate = targetDate.toLocaleDateString('ja-JP', {
@@ -644,6 +652,10 @@ try {
       return bounds.width > 0 && bounds.height > 0;
     });
     const boundaryStyle = sampleBoundaryPath ? getComputedStyle(sampleBoundaryPath) : null;
+    const referenceBasePane = map.getPane('referenceBasePane');
+    const whiteReferencePathCount = [...(referenceBasePane?.querySelectorAll('path') || [])]
+      .filter(path => ['#fff', '#ffffff', 'white'].includes(String(path.getAttribute('stroke')).toLowerCase()))
+      .length;
     const boundaryAtFullOpacity = {
       toggleChecked: Boolean(document.querySelector('#prefToggle')?.checked),
       layerActive: Boolean(prefLayer) && map.hasLayer(prefLayer),
@@ -661,6 +673,7 @@ try {
       strokeWidth: Number(sampleBoundaryPath?.getAttribute('stroke-width')),
       strokeOpacity: Number(sampleBoundaryPath?.getAttribute('stroke-opacity')),
       filter: boundaryStyle?.filter || '',
+      whiteReferencePathCount,
     };
     control.value = String(initialValue);
     control.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1638,6 +1651,7 @@ try {
     && result.checks.initial.sampleCell?.width < 3
     && result.checks.initial.sampleCell?.height > 0.8
     && result.checks.initial.sampleCell?.height < 3
+    && result.checks.initial.sampleCell?.devicePixelAligned
     && (requireStale
       ? result.checks.initial.stale === 'true'
         && result.checks.initial.staleReasons.length >= 2
@@ -1665,10 +1679,11 @@ try {
     && result.checks.analysisOpacity.boundaryAtFullOpacity.panePointerEvents === 'none'
     && result.checks.analysisOpacity.boundaryAtFullOpacity.pathCount === 47
     && result.checks.analysisOpacity.boundaryAtFullOpacity.visiblePathCount > 0
-    && result.checks.analysisOpacity.boundaryAtFullOpacity.stroke === '#405f58'
-    && result.checks.analysisOpacity.boundaryAtFullOpacity.strokeWidth >= 1.1
-    && result.checks.analysisOpacity.boundaryAtFullOpacity.strokeOpacity >= 0.95
-    && result.checks.analysisOpacity.boundaryAtFullOpacity.filter !== 'none'
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.stroke === '#17352f'
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.strokeWidth >= 1.75
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.strokeOpacity === 1
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.filter === 'none'
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.whiteReferencePathCount === 0
     && result.checks.placeLabels.schemaVersion === 1
     && result.checks.placeLabels.sourceId === 'station_inventory_current_temperature'
     && result.checks.placeLabels.sourcePath === 'data/weather/japan_all_stations/station_inventory_current_temperature.csv'

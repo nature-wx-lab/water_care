@@ -60,6 +60,12 @@ async function measure(name, width, height) {
     const legend = document.querySelector('#legendBox');
     const subject = document.querySelector('.map-context-subject');
     const subjectStyle = subject ? getComputedStyle(subject) : null;
+    const sampleGrid = analysis.publicLandGridIds.find(gridId => map.getBounds().contains([
+      analysis.points[gridId * 2], analysis.points[gridId * 2 + 1],
+    ]));
+    const sampleCell = Number.isInteger(sampleGrid)
+      ? gridCellRect(analysis.points[sampleGrid * 2], analysis.points[sampleGrid * 2 + 1])
+      : null;
     return {
       viewport: { width: innerWidth, height: innerHeight, dpr: devicePixelRatio },
       panel: rect('.map-panel'),
@@ -108,6 +114,13 @@ async function measure(name, width, height) {
       mapContainsWakkanai: map.getBounds().contains([45.42, 141.68]),
       mapContainsKagoshima: map.getBounds().contains([31.60, 130.55]),
       referenceLandActive: Boolean(referenceLandLayer) && map.hasLayer(referenceLandLayer),
+      sampleCell: sampleCell ? {
+        ...sampleCell,
+        devicePixelAligned: ['left', 'top', 'width', 'height'].every(key => {
+          const deviceValue = sampleCell[key] * devicePixelRatio;
+          return Math.abs(deviceValue - Math.round(deviceValue)) < 0.001;
+        }),
+      } : null,
     };
   });
   const desktop = width > 760;
@@ -151,6 +164,7 @@ async function measure(name, width, height) {
     && state.timeline.height < 120
     && state.stage.height >= (desktop ? 600 : 400)
     && state.referenceLandActive
+    && state.sampleCell?.devicePixelAligned
     && state.subjectColor === 'rgb(23, 53, 47)'
     && state.subjectBackground !== 'rgb(23, 53, 47)'
     && Number.parseFloat(state.subjectAccentWidth) >= 3
