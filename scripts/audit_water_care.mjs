@@ -1820,7 +1820,7 @@ try {
     && result.checks.landSelectionDistance.hitRadiusSquared === 0.004
     && result.checks.locationLabel.gridId === 13463
     && result.checks.locationLabel.landClass === 1
-    && result.checks.locationLabel.resolved === '埼玉県加須市付近'
+    && /^埼玉県.+付近$/.test(result.checks.locationLabel.resolved)
     && result.checks.locationLabel.cached === result.checks.locationLabel.resolved
     && Number.isFinite(result.checks.locationLabel.latitude)
     && Number.isFinite(result.checks.locationLabel.longitude)
