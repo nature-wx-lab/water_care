@@ -647,11 +647,20 @@ try {
     });
     const boundaryPane = map.getPane(ADMIN_BOUNDARY_PANE);
     const boundaryPaths = [...(boundaryPane?.querySelectorAll('.pref-boundary') || [])];
-    const sampleBoundaryPath = boundaryPaths.find(path => {
-      const bounds = path.getBoundingClientRect();
-      return bounds.width > 0 && bounds.height > 0;
-    });
-    const boundaryStyle = sampleBoundaryPath ? getComputedStyle(sampleBoundaryPath) : null;
+    const boundaryCanvas = document.querySelector('.boundary-canvas');
+    const boundaryContext = boundaryCanvas?.getContext('2d', { willReadFrequently: true });
+    const boundaryPixels = boundaryContext?.getImageData(0, 0, boundaryCanvas.width, boundaryCanvas.height).data || [];
+    let boundaryPixelCount = 0;
+    for (let index = 3; index < boundaryPixels.length; index += 4) {
+      if (boundaryPixels[index] > 0) boundaryPixelCount += 1;
+    }
+    const toggle = document.querySelector('#prefToggle');
+    toggle.checked = false;
+    toggle.dispatchEvent(new Event('change', { bubbles: true }));
+    const hiddenWhenOff = boundaryCanvas?.hidden === true
+      && boundaryCanvas?.dataset.ringCount === '0';
+    toggle.checked = true;
+    toggle.dispatchEvent(new Event('change', { bubbles: true }));
     const referenceBasePane = map.getPane('referenceBasePane');
     const whiteReferencePathCount = [...(referenceBasePane?.querySelectorAll('path') || [])]
       .filter(path => ['#fff', '#ffffff', 'white'].includes(String(path.getAttribute('stroke')).toLowerCase()))
@@ -664,15 +673,22 @@ try {
       panePointerEvents: getComputedStyle(boundaryPane).pointerEvents,
       analysisZIndex: Number.parseFloat(getComputedStyle(canvas).zIndex),
       labelZIndex: Number.parseFloat(getComputedStyle(labelLayer?._canvas).zIndex),
+      canvasZIndex: Number.parseFloat(getComputedStyle(boundaryCanvas).zIndex),
+      canvasPointerEvents: getComputedStyle(boundaryCanvas).pointerEvents,
+      canvasDirectChild: boundaryCanvas?.parentElement === canvas.parentElement,
+      labelDirectSibling: boundaryCanvas?.parentElement === labelLayer?._canvas?.parentElement,
+      canvasWidth: boundaryCanvas?.width || 0,
+      canvasHeight: boundaryCanvas?.height || 0,
+      canvasPixelCount: boundaryPixelCount,
+      canvasRingCount: Number(boundaryCanvas?.dataset.ringCount || 0),
+      canvasDrawSequence: Number(boundaryCanvas?.dataset.drawSequence || 0),
+      configuredStroke: ADMIN_BOUNDARY_STYLE.color,
+      configuredLineWidth: ADMIN_BOUNDARY_STYLE.weight,
+      configuredOpacity: ADMIN_BOUNDARY_STYLE.opacity,
+      hiddenWhenOff,
+      visibleAfterRestore: boundaryCanvas?.hidden === false,
       pathCount: boundaryPaths.length,
-      visiblePathCount: boundaryPaths.filter(path => {
-        const bounds = path.getBoundingClientRect();
-        return bounds.width > 0 && bounds.height > 0;
-      }).length,
-      stroke: sampleBoundaryPath?.getAttribute('stroke') || '',
-      strokeWidth: Number(sampleBoundaryPath?.getAttribute('stroke-width')),
-      strokeOpacity: Number(sampleBoundaryPath?.getAttribute('stroke-opacity')),
-      filter: boundaryStyle?.filter || '',
+      visibleSvgPathCount: boundaryPaths.filter(path => Number(path.getAttribute('stroke-opacity')) > 0).length,
       whiteReferencePathCount,
     };
     control.value = String(initialValue);
@@ -1672,18 +1688,26 @@ try {
     && result.checks.analysisOpacity.boundaryAtFullOpacity.toggleChecked
     && result.checks.analysisOpacity.boundaryAtFullOpacity.layerActive
     && sameJson(result.checks.analysisOpacity.boundaryAtFullOpacity.childPanes, ['adminBoundaryPane'])
-    && result.checks.analysisOpacity.boundaryAtFullOpacity.paneZIndex
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.canvasZIndex
       > result.checks.analysisOpacity.boundaryAtFullOpacity.analysisZIndex
-    && result.checks.analysisOpacity.boundaryAtFullOpacity.paneZIndex < 470
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.canvasZIndex < 470
     && result.checks.analysisOpacity.boundaryAtFullOpacity.labelZIndex === 470
-    && result.checks.analysisOpacity.boundaryAtFullOpacity.panePointerEvents === 'none'
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.canvasPointerEvents === 'none'
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.canvasDirectChild
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.labelDirectSibling
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.canvasWidth > 0
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.canvasHeight > 0
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.canvasPixelCount > 1000
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.canvasRingCount === 1158
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.canvasDrawSequence > 0
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.hiddenWhenOff
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.visibleAfterRestore
     && result.checks.analysisOpacity.boundaryAtFullOpacity.pathCount === 47
-    && result.checks.analysisOpacity.boundaryAtFullOpacity.visiblePathCount > 0
-    && result.checks.analysisOpacity.boundaryAtFullOpacity.stroke === '#17352f'
-    && result.checks.analysisOpacity.boundaryAtFullOpacity.strokeWidth >= 1.1
-    && result.checks.analysisOpacity.boundaryAtFullOpacity.strokeWidth <= 1.2
-    && result.checks.analysisOpacity.boundaryAtFullOpacity.strokeOpacity === 1
-    && result.checks.analysisOpacity.boundaryAtFullOpacity.filter === 'none'
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.visibleSvgPathCount === 0
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.configuredStroke === '#17352f'
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.configuredLineWidth >= 1.1
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.configuredLineWidth <= 1.2
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.configuredOpacity === 1
     && result.checks.analysisOpacity.boundaryAtFullOpacity.whiteReferencePathCount === 0
     && result.checks.placeLabels.schemaVersion === 1
     && result.checks.placeLabels.sourceId === 'station_inventory_current_temperature'

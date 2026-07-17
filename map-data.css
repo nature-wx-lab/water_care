@@ -3,7 +3,7 @@
 .timeline{position:relative;z-index:1;display:flex;max-width:none;overflow:hidden;background:#fff;border:1px solid #c4d3cf;border-radius:5px}
 .timeline button{flex:0 0 auto;padding:7px 9px;border:0;border-right:1px solid var(--line);background:#fff;font-size:11px}
 .timeline button.active{background:var(--accent);color:#fff}
-.analysis-canvas{position:absolute;inset:0;z-index:450;pointer-events:none}.amedas-rain-canvas{position:absolute;inset:0;z-index:460;pointer-events:none}
+.analysis-canvas{position:absolute;inset:0;z-index:450;pointer-events:none}.amedas-rain-canvas{position:absolute;inset:0;z-index:460;pointer-events:none}.boundary-canvas{position:absolute;inset:0;z-index:465;pointer-events:none}
 .legend{position:absolute;z-index:600;right:12px;top:55px;display:grid;gap:3px;width:82px;padding:8px 6px 9px;background:#fffffff2;border:1px solid #9eb3ad;border-radius:3px;box-shadow:0 2px 8px #17352f1c;color:#17352f;font-size:10px;user-select:none;touch-action:none}
 .legend>b{display:block;font-size:10px;line-height:1.2;text-align:center;white-space:nowrap}
 .legend-scale{display:grid;grid-template-rows:15px 220px 15px;height:auto;margin:4px 0 0}
