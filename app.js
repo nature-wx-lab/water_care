@@ -5,7 +5,7 @@ const GSI_REVERSE_GEOCODER_URL='https://mreversegeocoder.gsi.go.jp/reverse-geoco
 const GSI_MUNICIPALITY_URL='https://maps.gsi.go.jp/js/muni.js';
 const REFERENCE_BASE_URL='./data/static/reference_basemap.geojson?v=reference-base-5654408c';
 const ADMIN_BOUNDARY_PANE='adminBoundaryPane';
-const ADMIN_BOUNDARY_STYLE={color:'#6f7a82',weight:.75,opacity:.34,fill:false};
+const ADMIN_BOUNDARY_STYLE={color:'#3f4a47',weight:.75,opacity:.58,fill:false};
 const PLACE_LABEL_INITIAL_ZOOM=5;
 const JST_TIME_ZONE='Asia/Tokyo';
 const GRID_LAT_STEP=.05;
