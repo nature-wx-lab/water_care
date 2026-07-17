@@ -93,12 +93,26 @@ try {
     const assumption = document.querySelector('#modelAssumption');
     const assumptionRect = assumption?.getBoundingClientRect();
     const timelineRect = document.querySelector('#timeline')?.getBoundingClientRect();
+    const timelineTrackRect = document.querySelector('.timeline-track')?.getBoundingClientRect();
+    const timelineButtonGroups = [...document.querySelectorAll('.timeline-jumps')].map(group => (
+      [...group.querySelectorAll('button')].map(button => button.getBoundingClientRect())
+    ));
+    const timelineButtons = [...document.querySelectorAll('.timeline-jumps button')];
+    const timelineButtonStyles = timelineButtons.map(button => getComputedStyle(button));
+    const visibleTimelineLabels = [...document.querySelectorAll('#timelineLabels .timeline-label')]
+      .filter(label => getComputedStyle(label).display !== 'none' && label.getBoundingClientRect().width > 0);
+    const visibleTimelineLabelRects = visibleTimelineLabels
+      .map(label => label.getBoundingClientRect()).sort((left, right) => left.left - right.left);
     const mapStageRect = document.querySelector('.map-stage')?.getBoundingClientRect();
     const mapRect = document.querySelector('#map')?.getBoundingClientRect();
     const infoBar = document.querySelector('#mapInfoBar');
     const infoRect = infoBar?.getBoundingClientRect();
     const subjectRect = document.querySelector('.map-context-subject')?.getBoundingClientRect();
     const timeRect = document.querySelector('.map-context-time')?.getBoundingClientRect();
+    const timeStyle = document.querySelector('.map-context-time')
+      ? getComputedStyle(document.querySelector('.map-context-time')) : null;
+    const clockStyle = document.querySelector('#mapContextClock')
+      ? getComputedStyle(document.querySelector('#mapContextClock')) : null;
     const legendRect = document.querySelector('#legendBox')?.getBoundingClientRect();
     const legendScaleRect = document.querySelector('#legendScale')?.getBoundingClientRect();
     const legendBarRect = document.querySelector('#legendBar')?.getBoundingClientRect();
@@ -201,6 +215,26 @@ try {
         && [layerText, modeText, sourceText, visibleDate, visibleClock].every(value => infoBar?.title.includes(value)),
       contextSplit: Boolean(subjectRect?.width && timeRect?.width),
       contextCardsSeparated: Boolean(subjectRect && timeRect) && subjectRect.right <= timeRect.left,
+      timelineUi: {
+        readoutAbsent: !document.querySelector('#timelineReadout'),
+        tickCount: document.querySelectorAll('[data-timeline-tick]').length,
+        datasetTickCount: Number(document.querySelector('#timeline')?.dataset.tickCount),
+        labelCount: document.querySelectorAll('#timelineLabels .timeline-label').length,
+        visibleLabelCount: visibleTimelineLabels.length,
+        labelTexts: visibleTimelineLabels.map(label => label.textContent),
+        maxLabelOverlap: Math.max(0, ...visibleTimelineLabelRects.slice(1)
+          .map((rect, index) => visibleTimelineLabelRects[index].right - rect.left)),
+        buttonCount: timelineButtons.length,
+        buttonsIndividuallyBordered: timelineButtonStyles.every(style => style.borderStyle === 'solid'
+          && Number.parseFloat(style.borderWidth) >= 1),
+        buttonGroupsSeparated: timelineButtonGroups.every(rects => rects.slice(1)
+          .every((rect, index) => rect.left - rects[index].right >= 2)),
+        trackWidth: timelineTrackRect?.width || 0,
+        trackShare: timelineRect && timelineTrackRect ? timelineTrackRect.width / timelineRect.width : 0,
+        timeCardAccentWidth: Number.parseFloat(timeStyle?.borderLeftWidth || '0'),
+        timeCardShadow: timeStyle?.boxShadow || '',
+        clockFontSize: Number.parseFloat(clockStyle?.fontSize || '0'),
+      },
       infoClearOfMapControls: Boolean(infoRect) && controlRects.length > 0
         && infoRect.left >= Math.max(...controlRects.map(rect => rect.right)) + 4,
       landMaskNote: document.querySelector('#landMaskNote')?.textContent || '',
@@ -568,7 +602,13 @@ try {
       viewKind: timeline?.dataset.viewKind,
       timeIndex: Number(timeline?.dataset.timeIndex),
       source: timeline?.dataset.source,
-      readout: document.querySelector('#timelineReadout')?.textContent,
+      targetLabel: timeline?.dataset.targetLabel,
+      validtime: timeline?.dataset.validtime,
+      tickCount: document.querySelectorAll('[data-timeline-tick]').length,
+      datasetTickCount: Number(timeline?.dataset.tickCount),
+      labelCount: document.querySelectorAll('#timelineLabels .timeline-label').length,
+      labelTexts: [...document.querySelectorAll('#timelineLabels .timeline-label')].map(label => label.textContent),
+      readoutAbsent: !document.querySelector('#timelineReadout'),
     };
   });
   result.checks.initialCanvas = await canvasState('.analysis-canvas');
@@ -630,7 +670,9 @@ try {
     viewKind: document.querySelector('#timeline')?.dataset.viewKind,
     source: document.querySelector('#timeline')?.dataset.source,
     timeIndex: Number(document.querySelector('#timeline')?.dataset.timeIndex),
-    readout: document.querySelector('#timelineReadout')?.textContent,
+    targetLabel: document.querySelector('#timeline')?.dataset.targetLabel,
+    validtime: document.querySelector('#timeline')?.dataset.validtime,
+    readoutAbsent: !document.querySelector('#timelineReadout'),
     stamp: document.querySelector('#mapInfoBar')?.textContent,
     info: document.querySelector('#mapInfoBar')?.textContent,
     contextSource: document.querySelector('#mapContextSource')?.textContent,
@@ -648,7 +690,7 @@ try {
   await page.evaluate(index => loadShortcut(index), aggregateSlotIndex);
   await page.waitForFunction(({ label }) => document.querySelector('#timeline')?.dataset.viewKind === 'aggregate'
     && document.querySelector('#timeline')?.dataset.source === '集計'
-    && document.querySelector('#timelineReadout')?.textContent.includes(label)
+    && document.querySelector('#timeline')?.dataset.targetLabel.includes(label)
     && document.querySelector('#mapContextSource')?.textContent === '集計'
     && document.querySelector('#mapContextSlot')?.textContent.includes(label), { label: aggregateDisplayLabel });
   result.checks.timelineAggregate = await page.evaluate(() => ({
@@ -657,7 +699,9 @@ try {
     timeIndex: Number(document.querySelector('#timeline')?.dataset.timeIndex),
     activeShortcut: document.querySelector('[data-slot-index].active')?.dataset.slotIndex,
     buttonLabel: document.querySelector('[data-slot-index].active')?.textContent,
-    readout: document.querySelector('#timelineReadout')?.textContent,
+    targetLabel: document.querySelector('#timeline')?.dataset.targetLabel,
+    validtime: document.querySelector('#timeline')?.dataset.validtime,
+    readoutAbsent: !document.querySelector('#timelineReadout'),
     stamp: document.querySelector('#mapInfoBar')?.textContent,
     info: document.querySelector('#mapInfoBar')?.textContent,
     contextSource: document.querySelector('#mapContextSource')?.textContent,
@@ -753,7 +797,8 @@ try {
     viewKind: document.querySelector('#timeline')?.dataset.viewKind,
     source: document.querySelector('#timeline')?.dataset.source,
     activeShortcut: document.querySelector('[data-slot-index].active')?.dataset.slotIndex,
-    readout: document.querySelector('#timelineReadout')?.textContent,
+    targetLabel: document.querySelector('#timeline')?.dataset.targetLabel,
+    readoutAbsent: !document.querySelector('#timelineReadout'),
   }));
 
   result.checks.observedWindows = {};
@@ -1261,6 +1306,43 @@ try {
       noHorizontalOverflow: document.documentElement.scrollWidth <= window.innerWidth,
     };
   });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(100);
+  result.checks.mobileTimeline = await page.evaluate(() => {
+    const timelineRect = document.querySelector('#timeline')?.getBoundingClientRect();
+    const trackRect = document.querySelector('.timeline-track')?.getBoundingClientRect();
+    const labels = [...document.querySelectorAll('#timelineLabels .timeline-label')]
+      .filter(label => getComputedStyle(label).display !== 'none' && label.getBoundingClientRect().width > 0);
+    const labelRects = labels.map(label => label.getBoundingClientRect()).sort((left, right) => left.left - right.left);
+    const buttonGroups = [...document.querySelectorAll('.timeline-jumps')].map(group => (
+      [...group.querySelectorAll('button')].map(button => button.getBoundingClientRect())
+    ));
+    const buttons = [...document.querySelectorAll('.timeline-jumps button')];
+    const timeRect = document.querySelector('.map-context-time')?.getBoundingClientRect();
+    const subjectRect = document.querySelector('.map-context-subject')?.getBoundingClientRect();
+    return {
+      noHorizontalOverflow: document.documentElement.scrollWidth <= window.innerWidth,
+      readoutAbsent: !document.querySelector('#timelineReadout'),
+      tickCount: document.querySelectorAll('[data-timeline-tick]').length,
+      expectedTickCount: Number(document.querySelector('#timelineRange')?.max)
+        - Number(document.querySelector('#timelineRange')?.min) + 1,
+      visibleLabelCount: labels.length,
+      labelTexts: labels.map(label => label.innerText),
+      maxLabelOverlap: Math.max(0, ...labelRects.slice(1)
+        .map((rect, index) => labelRects[index].right - rect.left)),
+      buttonCount: buttons.length,
+      buttonsIndividuallyBordered: buttons.every(button => {
+        const style = getComputedStyle(button);
+        return style.borderStyle === 'solid' && Number.parseFloat(style.borderWidth) >= 1;
+      }),
+      buttonGroupsSeparated: buttonGroups.every(rects => rects.slice(1)
+        .every((rect, index) => rect.left - rects[index].right >= 2)),
+      trackShare: timelineRect && trackRect ? trackRect.width / timelineRect.width : 0,
+      timeCardVisible: Boolean(timeRect?.width && timeRect?.height),
+      contextCardsSeparated: Boolean(subjectRect && timeRect) && subjectRect.right <= timeRect.left,
+      clockFontSize: Number.parseFloat(getComputedStyle(document.querySelector('#mapContextClock')).fontSize),
+    };
+  });
   await page.setViewportSize({ width: 1440, height: 900 });
   const contract = result.checks.contract;
   const conditionApplicationOk = contract.conditionApplication?.mode === 'client_proxy'
@@ -1370,25 +1452,33 @@ try {
     && result.checks.timelineInitial.timeIndex === contract.currentIndex
     && result.checks.timelineInitial.viewKind === 'hourly'
     && result.checks.timelineInitial.source === '実況'
-    && result.checks.timelineInitial.readout.includes('実況')
-    && result.checks.timelineInitial.readout.includes('現在');
+    && result.checks.timelineInitial.targetLabel === '現在'
+    && result.checks.timelineInitial.readoutAbsent
+    && result.checks.timelineInitial.tickCount === contract.hourlyCount - plantTimelineMin
+    && result.checks.timelineInitial.datasetTickCount === result.checks.timelineInitial.tickCount
+    && result.checks.timelineInitial.labelCount >= 6
+    && result.checks.timelineInitial.labelTexts.some(label => label.includes('現在'))
+    && result.checks.timelineInitial.labelTexts.some(label => /\d+\/\d+ \d{2}:\d{2}/.test(label));
   const selectedTimelineOk = result.checks.timelinePoint.viewKind === 'hourly'
     && result.checks.timelinePoint.source === '予報'
     && result.checks.timelinePoint.timeIndex === forecastIndex
-    && result.checks.timelinePoint.readout.includes('+1h')
+    && result.checks.timelinePoint.targetLabel === '+1h'
+    && result.checks.timelinePoint.readoutAbsent
     && result.checks.timelinePoint.contextSource === '予報'
     && result.checks.timelinePoint.contextSlot === '+1h'
     && result.checks.timelineAggregate.viewKind === 'aggregate'
     && result.checks.timelineAggregate.source === '集計'
+    && result.checks.timelineAggregate.readoutAbsent
     && result.checks.timelineAggregate.contextSource === '集計'
     && result.checks.medaka.timelineMin === medakaTimelineMin
     && result.checks.medaka.timelineMax === medakaTimelineMax
     && result.checks.medaka.timelineStep === 1
     && result.checks.medakaAggregate.viewKind === 'aggregate'
-    && result.checks.medakaAggregate.source === '集計';
+    && result.checks.medakaAggregate.source === '集計'
+    && result.checks.medakaAggregate.readoutAbsent;
   const partialDisplayOk = result.checks.partialLabelExample === '48h内最小（37h分）'
     && aggregateSlotIndex >= 0
-    && result.checks.timelineAggregate.readout.includes(aggregateDisplayLabel)
+    && result.checks.timelineAggregate.targetLabel.includes(aggregateDisplayLabel)
     && result.checks.timelineAggregate.contextSlot.includes(aggregateDisplayLabel)
     && result.checks.imageSave.ready.length > 0
     && !result.checks.imageSave.error
@@ -1476,6 +1566,19 @@ try {
     && result.checks.initial.removedLongCopyAbsent
     && result.checks.initial.contextSplit
     && result.checks.initial.contextCardsSeparated
+    && result.checks.initial.timelineUi.readoutAbsent
+    && result.checks.initial.timelineUi.tickCount === result.checks.timelineInitial.tickCount
+    && result.checks.initial.timelineUi.datasetTickCount === result.checks.initial.timelineUi.tickCount
+    && result.checks.initial.timelineUi.labelCount >= 6
+    && result.checks.initial.timelineUi.visibleLabelCount >= 6
+    && result.checks.initial.timelineUi.maxLabelOverlap <= 0.5
+    && result.checks.initial.timelineUi.buttonCount === 5
+    && result.checks.initial.timelineUi.buttonsIndividuallyBordered
+    && result.checks.initial.timelineUi.buttonGroupsSeparated
+    && result.checks.initial.timelineUi.trackShare > 0.55
+    && result.checks.initial.timelineUi.timeCardAccentWidth >= 3
+    && result.checks.initial.timelineUi.timeCardShadow !== 'none'
+    && result.checks.initial.timelineUi.clockFontSize >= 18
     && result.checks.initial.obsoleteStampAbsent
     && result.checks.initial.infoTitleComplete
     && result.checks.initial.infoClearOfMapControls
@@ -1636,6 +1739,19 @@ try {
     && result.checks.mobileMydataManagement.formVisible
     && result.checks.mobileMydataManagement.noHorizontalOverflow
     && result.checks.mobileMydataManagement.infoClearOfMapControls
+    && result.checks.mobileTimeline.noHorizontalOverflow
+    && result.checks.mobileTimeline.readoutAbsent
+    && result.checks.mobileTimeline.tickCount === result.checks.mobileTimeline.expectedTickCount
+    && result.checks.mobileTimeline.visibleLabelCount >= 2
+    && result.checks.mobileTimeline.maxLabelOverlap <= 0.5
+    && result.checks.mobileTimeline.labelTexts.every(label => !label.includes('時時'))
+    && result.checks.mobileTimeline.buttonCount === 5
+    && result.checks.mobileTimeline.buttonsIndividuallyBordered
+    && result.checks.mobileTimeline.buttonGroupsSeparated
+    && result.checks.mobileTimeline.trackShare > 0.5
+    && result.checks.mobileTimeline.timeCardVisible
+    && result.checks.mobileTimeline.contextCardsSeparated
+    && result.checks.mobileTimeline.clockFontSize >= 13
     && observedWindowsOk
     && result.checks.rainDifference.observed.includes('24時間降水 前日差')
     && result.checks.rainDifference.canvasVisible
