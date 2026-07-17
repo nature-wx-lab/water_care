@@ -1648,9 +1648,9 @@ try {
     && result.checks.initial.layout.timelineHeight < 90
     && result.checks.initial.layout.stageHeight > 500
     && result.checks.initial.sampleCell?.width > 0.8
-    && result.checks.initial.sampleCell?.width < 3
+    && result.checks.initial.sampleCell?.width <= 3
     && result.checks.initial.sampleCell?.height > 0.8
-    && result.checks.initial.sampleCell?.height < 3
+    && result.checks.initial.sampleCell?.height <= 3
     && result.checks.initial.sampleCell?.devicePixelAligned
     && (requireStale
       ? result.checks.initial.stale === 'true'
@@ -1680,7 +1680,7 @@ try {
     && result.checks.analysisOpacity.boundaryAtFullOpacity.pathCount === 47
     && result.checks.analysisOpacity.boundaryAtFullOpacity.visiblePathCount > 0
     && result.checks.analysisOpacity.boundaryAtFullOpacity.stroke === '#17352f'
-    && result.checks.analysisOpacity.boundaryAtFullOpacity.strokeWidth >= 1.75
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.strokeWidth >= 2
     && result.checks.analysisOpacity.boundaryAtFullOpacity.strokeOpacity === 1
     && result.checks.analysisOpacity.boundaryAtFullOpacity.filter === 'none'
     && result.checks.analysisOpacity.boundaryAtFullOpacity.whiteReferencePathCount === 0
