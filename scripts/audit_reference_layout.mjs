@@ -66,6 +66,22 @@ async function measure(name, width, height) {
     const sampleCell = Number.isInteger(sampleGrid)
       ? gridCellRect(analysis.points[sampleGrid * 2], analysis.points[sampleGrid * 2 + 1])
       : null;
+    const seamPairGaps = [
+      [32.975, 131.406005859375, 131.468994140625],
+      [35.975, 136.031005859375, 136.093994140625],
+      [38.975, 140.656005859375, 140.718994140625],
+    ].map(([lat, westLon, eastLon]) => {
+      const west = gridCellRect(lat, westLon);
+      const east = gridCellRect(lat, eastLon);
+      const cssGap = east.left - (west.left + west.width);
+      return {
+        lat,
+        westLon,
+        eastLon,
+        cssGap,
+        deviceGap: cssGap * devicePixelRatio,
+      };
+    });
     return {
       viewport: { width: innerWidth, height: innerHeight, dpr: devicePixelRatio },
       panel: rect('.map-panel'),
@@ -121,6 +137,7 @@ async function measure(name, width, height) {
           return Math.abs(deviceValue - Math.round(deviceValue)) < 0.001;
         }),
       } : null,
+      seamPairGaps,
     };
   });
   const desktop = width > 760;
@@ -165,6 +182,7 @@ async function measure(name, width, height) {
     && state.stage.height >= (desktop ? 600 : 400)
     && state.referenceLandActive
     && state.sampleCell?.devicePixelAligned
+    && state.seamPairGaps.every(pair => pair.cssGap <= 0.001 && pair.deviceGap <= 0.001)
     && state.subjectColor === 'rgb(23, 53, 47)'
     && state.subjectBackground !== 'rgb(23, 53, 47)'
     && Number.parseFloat(state.subjectAccentWidth) >= 3
