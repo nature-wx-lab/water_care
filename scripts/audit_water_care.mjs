@@ -1704,10 +1704,9 @@ try {
     && result.checks.analysisOpacity.boundaryAtFullOpacity.visibleAfterRestore
     && result.checks.analysisOpacity.boundaryAtFullOpacity.pathCount === 47
     && result.checks.analysisOpacity.boundaryAtFullOpacity.visibleSvgPathCount === 0
-    && result.checks.analysisOpacity.boundaryAtFullOpacity.configuredStroke === '#17352f'
-    && result.checks.analysisOpacity.boundaryAtFullOpacity.configuredLineWidth >= 1.1
-    && result.checks.analysisOpacity.boundaryAtFullOpacity.configuredLineWidth <= 1.2
-    && result.checks.analysisOpacity.boundaryAtFullOpacity.configuredOpacity === 1
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.configuredStroke === '#6f7a82'
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.configuredLineWidth === .75
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.configuredOpacity === .34
     && result.checks.analysisOpacity.boundaryAtFullOpacity.whiteReferencePathCount === 0
     && result.checks.placeLabels.schemaVersion === 1
     && result.checks.placeLabels.sourceId === 'station_inventory_current_temperature'
