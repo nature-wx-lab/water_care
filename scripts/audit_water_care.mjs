@@ -88,7 +88,8 @@ try {
     && ['true', 'false'].includes(document.querySelector('#mapInfoBar')?.dataset.stale)
     && (!expectStale || (document.querySelector('#mapContextHealth')?.textContent === '更新遅延'
       && document.querySelector('#mapStatus')?.textContent.includes('更新されていません'))), requireStale, { timeout: 120000 });
-  await page.waitForFunction(() => referenceLandLayer && map.hasLayer(referenceLandLayer), null, { timeout: 120000 });
+  await page.waitForFunction(() => referenceLandLayer && map.hasLayer(referenceLandLayer)
+    && prefLayer && map.hasLayer(prefLayer), null, { timeout: 120000 });
   result.checks.initial = await page.evaluate(() => {
     const assumption = document.querySelector('#modelAssumption');
     const assumptionRect = assumption?.getBoundingClientRect();
@@ -636,6 +637,31 @@ try {
       const alpha = readerContext.getImageData(0, 0, 1, 1).data[3] / 255;
       return { value, runtime: analysis.opacity, alpha };
     });
+    const boundaryPane = map.getPane(ADMIN_BOUNDARY_PANE);
+    const boundaryPaths = [...(boundaryPane?.querySelectorAll('.pref-boundary') || [])];
+    const sampleBoundaryPath = boundaryPaths.find(path => {
+      const bounds = path.getBoundingClientRect();
+      return bounds.width > 0 && bounds.height > 0;
+    });
+    const boundaryStyle = sampleBoundaryPath ? getComputedStyle(sampleBoundaryPath) : null;
+    const boundaryAtFullOpacity = {
+      toggleChecked: Boolean(document.querySelector('#prefToggle')?.checked),
+      layerActive: Boolean(prefLayer) && map.hasLayer(prefLayer),
+      childPanes: [...new Set((prefLayer?.getLayers() || []).map(layer => layer.options?.pane))],
+      paneZIndex: Number.parseFloat(getComputedStyle(boundaryPane).zIndex),
+      panePointerEvents: getComputedStyle(boundaryPane).pointerEvents,
+      analysisZIndex: Number.parseFloat(getComputedStyle(canvas).zIndex),
+      labelZIndex: Number.parseFloat(getComputedStyle(labelLayer?._canvas).zIndex),
+      pathCount: boundaryPaths.length,
+      visiblePathCount: boundaryPaths.filter(path => {
+        const bounds = path.getBoundingClientRect();
+        return bounds.width > 0 && bounds.height > 0;
+      }).length,
+      stroke: sampleBoundaryPath?.getAttribute('stroke') || '',
+      strokeWidth: Number(sampleBoundaryPath?.getAttribute('stroke-width')),
+      strokeOpacity: Number(sampleBoundaryPath?.getAttribute('stroke-opacity')),
+      filter: boundaryStyle?.filter || '',
+    };
     control.value = String(initialValue);
     control.dispatchEvent(new Event('input', { bubbles: true }));
     return {
@@ -644,6 +670,7 @@ try {
       restoredRuntime: analysis.opacity,
       samples,
       offscreenPaintCanvas: Boolean(analysis.paintCanvas) && !analysis.paintCanvas.isConnected,
+      boundaryAtFullOpacity,
     };
   });
   result.checks.partialLabelExample = await page.evaluate(() => slotDisplayLabel({
@@ -712,6 +739,7 @@ try {
     delete button.dataset.imageReady;
     delete button.dataset.imageError;
     delete button.dataset.imageSlotLabel;
+    delete button.dataset.imageBoundaryRings;
     window.__waterCareAuditImageTexts = [];
     window.__waterCareAuditFillText = CanvasRenderingContext2D.prototype.fillText;
     CanvasRenderingContext2D.prototype.fillText = function auditFillText(text, ...args) {
@@ -733,6 +761,7 @@ try {
       ready: button?.dataset.imageReady || '',
       error: button?.dataset.imageError || '',
       slotLabel: button?.dataset.imageSlotLabel || '',
+      boundaryRings: Number(button?.dataset.imageBoundaryRings || 0),
       texts: [...(window.__waterCareAuditImageTexts || [])],
     };
     CanvasRenderingContext2D.prototype.fillText = window.__waterCareAuditFillText;
@@ -1483,6 +1512,7 @@ try {
     && result.checks.imageSave.ready.length > 0
     && !result.checks.imageSave.error
     && result.checks.imageSave.slotLabel === aggregateDisplayLabel
+    && result.checks.imageSave.boundaryRings > 47
     && ['100%', '90%', '80%', '70%', '60%', '50%', '40%', '30%', '20%', '10%', '0%']
       .every(label => result.checks.imageSave.texts.includes(label))
     && result.checks.imageSave.texts.includes('湿潤')
@@ -1625,6 +1655,20 @@ try {
     && result.checks.analysisOpacity.offscreenPaintCanvas
     && result.checks.analysisOpacity.samples.every(sample => Math.abs(sample.runtime - sample.value / 100) < 0.001
       && Math.abs(sample.alpha - sample.value / 100) < 0.015)
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.toggleChecked
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.layerActive
+    && sameJson(result.checks.analysisOpacity.boundaryAtFullOpacity.childPanes, ['adminBoundaryPane'])
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.paneZIndex
+      > result.checks.analysisOpacity.boundaryAtFullOpacity.analysisZIndex
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.paneZIndex < 470
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.labelZIndex === 470
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.panePointerEvents === 'none'
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.pathCount === 47
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.visiblePathCount > 0
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.stroke === '#405f58'
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.strokeWidth >= 1.1
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.strokeOpacity >= 0.95
+    && result.checks.analysisOpacity.boundaryAtFullOpacity.filter !== 'none'
     && result.checks.placeLabels.schemaVersion === 1
     && result.checks.placeLabels.sourceId === 'station_inventory_current_temperature'
     && result.checks.placeLabels.sourcePath === 'data/weather/japan_all_stations/station_inventory_current_temperature.csv'
